@@ -1,0 +1,53 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33122.133
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeledongCommander", "TeledongCommander\TeledongCommander\TeledongCommander.csproj", "{E3B89E98-7A9C-442E-B0C5-E69C301CA6E2}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeledongCommander.Android", "TeledongCommander\TeledongCommander.Android\TeledongCommander.Android.csproj", "{93C7CC9A-B249-4368-A656-1D135F1E6E6F}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeledongCommander.Desktop", "TeledongCommander\TeledongCommander.Desktop\TeledongCommander.Desktop.csproj", "{2AF4C58C-9B02-414B-87A1-80CA2DE25592}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeledongCommander.iOS", "TeledongCommander\TeledongCommander.iOS\TeledongCommander.iOS.csproj", "{CA252470-D941-425C-8E38-43F077DECB2C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeledongCommander.Browser", "TeledongCommander\TeledongCommander.Browser\TeledongCommander.Browser.csproj", "{29138899-C758-4330-88A2-46B2CF1451AB}"
+EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "WindowsSetup", "WindowsSetup\WindowsSetup.vdproj", "{C6FD0C43-4908-4D4A-8313-2098230C39AB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E3B89E98-7A9C-442E-B0C5-E69C301CA6E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3B89E98-7A9C-442E-B0C5-E69C301CA6E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3B89E98-7A9C-442E-B0C5-E69C301CA6E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3B89E98-7A9C-442E-B0C5-E69C301CA6E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{93C7CC9A-B249-4368-A656-1D135F1E6E6F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{93C7CC9A-B249-4368-A656-1D135F1E6E6F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{93C7CC9A-B249-4368-A656-1D135F1E6E6F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{93C7CC9A-B249-4368-A656-1D135F1E6E6F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2AF4C58C-9B02-414B-87A1-80CA2DE25592}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2AF4C58C-9B02-414B-87A1-80CA2DE25592}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2AF4C58C-9B02-414B-87A1-80CA2DE25592}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2AF4C58C-9B02-414B-87A1-80CA2DE25592}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA252470-D941-425C-8E38-43F077DECB2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA252470-D941-425C-8E38-43F077DECB2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA252470-D941-425C-8E38-43F077DECB2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA252470-D941-425C-8E38-43F077DECB2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{29138899-C758-4330-88A2-46B2CF1451AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{29138899-C758-4330-88A2-46B2CF1451AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{29138899-C758-4330-88A2-46B2CF1451AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{29138899-C758-4330-88A2-46B2CF1451AB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C6FD0C43-4908-4D4A-8313-2098230C39AB}.Debug|Any CPU.ActiveCfg = Debug
+		{C6FD0C43-4908-4D4A-8313-2098230C39AB}.Release|Any CPU.ActiveCfg = Release
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1EFD438C-8EFC-44D9-8884-BB71F3738B84}
+	EndGlobalSection
+EndGlobal
