@@ -4,11 +4,7 @@ using LibUsbDotNet.Main;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
-using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -189,7 +185,7 @@ public class TeledongManager
     /// /// <exception cref="Exception"></exception>
     public void SetSunlightMode(bool enableSunlightMode, bool useMutex=true)
     {
-        //SendNonQueryCommand(TeledongCommands.SetSunlightMode, new byte[] { (byte)(enableSunlightMode ? 1 : 0) }, useMutex);
+        SendNonQueryCommand(TeledongCommands.SetSunlightMode, new byte[] { (byte)(enableSunlightMode ? 1 : 0) }, useMutex);
         sunlightMode = enableSunlightMode;
     }
 
@@ -583,13 +579,13 @@ public class TeledongManager
 
                 if (sumSignalStrengthSunlight > sumSignalStrengthIndoors)
                 {
-                    SetSunlightMode(true, false);
+                    SetSunlightMode(true, useMutex: false);
                     calibrationLowValues.AddRange(lowValuesSunlight);
                     calibrationHighValues.AddRange(highValuesSunlight);
                 }
                 else
                 {
-                    SetSunlightMode(false, false);
+                    SetSunlightMode(false, useMutex: false);
                     calibrationLowValues.AddRange(lowValuesIndoor);
                     calibrationHighValues.AddRange(highValuesIndoor);
                 }
@@ -677,5 +673,6 @@ public enum TeledongCommands : byte
     SaveUserData = 0x05,
     ReadUserData = 0x06,
     SetSunlightMode = 0x07,
+    GetSunlightMode = 0x08,
     EnterBootloader = 0xFE,
 }

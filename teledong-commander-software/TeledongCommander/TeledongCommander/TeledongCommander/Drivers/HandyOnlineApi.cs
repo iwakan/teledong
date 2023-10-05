@@ -85,7 +85,7 @@ public class HandyOnlineApi
 
             try
             {
-                var result = httpClient.Send(request);
+                httpClient.SendAsync(request);
                 Debug.WriteLine("Sent to handy API: " + position.ToString("N2") + " , " + contentRaw.duration /*+ ": " + result.ReasonPhrase*/);
             }
             catch (Exception ex)

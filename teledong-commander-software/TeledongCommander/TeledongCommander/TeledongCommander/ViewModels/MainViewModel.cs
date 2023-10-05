@@ -26,6 +26,9 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using Avalonia.Platform.Storage;
+using Splat;
 
 namespace TeledongCommander.ViewModels;
 
@@ -79,13 +82,19 @@ public partial class MainViewModel : ViewModelBase
     public bool InputDeviceIsMouse => InputDevice == InputDevice.Mouse;
 
     [ObservableProperty]
-    private double readInterval = 20;
+    private double readInterval = 50;
 
     [ObservableProperty]
-    private double writeInterval = 80;
+    private double writeInterval = 50;
 
     [ObservableProperty]
     private double writeCommandDuration = 250;
+
+    [ObservableProperty]
+    private double filterEpsilon = 0.05;
+
+    [ObservableProperty]
+    private double filterTimeMilliseconds = 300;
 
     [ObservableProperty]
     private string sensorValuesDebugString = "";
@@ -135,13 +144,26 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool canClickConnectOutputDeviceButton;
 
-    TeledongManager? teledongModel;
-    ButtplugApi? buttplugIoModel;
-    HandyOnlineApi? handyOnlineApiModel;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FunscriptOutputPathAbbreviated))]
+    private string funscriptOutputPath;
+
+    public string FunscriptOutputPathAbbreviated => (FunscriptOutputPath.Length > 22 ? "..." : "") + FunscriptOutputPath.Substring(Math.Max(0, FunscriptOutputPath.Length - 22));
+
+    TeledongManager? teledongApi;
+    ButtplugApi? buttplugIoApi;
+    HandyOnlineApi? handyOnlineApi;
+    FunscriptRecorder? funscriptRecorder = new();
 
     System.Timers.Timer sensorReadTimer = new();
     System.Timers.Timer writeTimer = new();
     DispatcherTimer uiUpdateTimer = new();
+    Mutex outputThreadMutex = new();
+    Mutex inputThreadMutex = new();
+
+    List<StrokerPoint> inputPointBuffer = new List<StrokerPoint>();
+    Queue<StrokerPoint> outputPointBuffer = new Queue<StrokerPoint>();
+    DateTime referenceTime = DateTime.Now;
 
     const string settingsFolderName = "TeledongCommander";
 
@@ -170,10 +192,13 @@ public partial class MainViewModel : ViewModelBase
             }
         };
 
-        sensorReadTimer.Interval = 20;
-        sensorReadTimer.Elapsed += SensorReadTimer_Tick;
+        FunscriptOutputPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), $"teledong_{DateTime.Now.ToShortDateString()}.funscript");
 
-        writeTimer.Interval = 80;
+        sensorReadTimer.Interval = 50;
+        sensorReadTimer.Elapsed += SensorReadTimer_Tick;
+        sensorReadTimer.Elapsed += WriteTimer_Tick;
+
+        writeTimer.Interval = 50;
         writeTimer.Elapsed += WriteTimer_Tick;
 
         uiUpdateTimer.Interval = TimeSpan.FromMilliseconds(500);
@@ -181,9 +206,12 @@ public partial class MainViewModel : ViewModelBase
 
         LoadSettings();
 
-        writeTimer.Start();
+        //writeTimer.Start();
         sensorReadTimer.Start();
         uiUpdateTimer.Start();
+
+        OutputDevice = OutputDevice.HandyHttpApi;
+        InputDevice = InputDevice.Teledong;
     }
 
     private void UiUpdateTimer_Tick(object? sender, EventArgs e)
@@ -196,13 +224,13 @@ public partial class MainViewModel : ViewModelBase
     {
         if (InputDeviceIsTeledong)
         {
-            if (teledongModel == null || teledongModel.State == TeledongState.NotConnected)
+            if (teledongApi == null || teledongApi.State == TeledongState.NotConnected)
                 InputDeviceStatusText = "Not connected";
-            else if (teledongModel.State == TeledongState.Calibrating)
+            else if (teledongApi.State == TeledongState.Calibrating)
                 InputDeviceStatusText = "Teledong connected, calibrating...";
-            else if (teledongModel.State == TeledongState.Ok)
+            else if (teledongApi.State == TeledongState.Ok)
                 InputDeviceStatusText = "Teledong connected, OK";
-            else if (teledongModel.State == TeledongState.Error)
+            else if (teledongApi.State == TeledongState.Error)
                 InputDeviceStatusText = "ERROR";
         }
         else if (InputDeviceIsMouse)
@@ -213,31 +241,28 @@ public partial class MainViewModel : ViewModelBase
             InputDeviceStatusText = "No input device selected";
 
         if (OutputDeviceIsButtplugIo)
-            OutputDeviceStatusText = buttplugIoModel?.StatusText ?? "Not connected";
+            OutputDeviceStatusText = buttplugIoApi?.StatusText ?? "Not connected";
         else if (OutputDeviceIsHandyKey)
-            OutputDeviceStatusText = handyOnlineApiModel?.StatusText ?? "Not connected";
+            OutputDeviceStatusText = handyOnlineApi?.StatusText ?? "Not connected";
         else if (OutputDeviceIsIntiface)
             OutputDeviceStatusText = "Not yet supported";
         else if (OutputDeviceIsFunscript)
-            OutputDeviceStatusText = "Not yet supported";
+            OutputDeviceStatusText = (funscriptRecorder?.IsRecording ?? false) ? $"Recording: {funscriptRecorder!.RecordingDuration.ToString(@"mm\:ss")}" : "Not recording.";
         else
             OutputDeviceStatusText = "No output device selected";
 
         CanClickConnectInputDeviceButton = InputDeviceIsTeledong;
-        CanClickConnectOutputDeviceButton = !OutputDeviceIsNone && !OutputDeviceIsFunscript;
+        CanClickConnectOutputDeviceButton = !OutputDeviceIsNone;
+
     }
 
-    /*private void ChartUpdateTimer_Tick(object? sender, EventArgs e)
-    {
-        throw new NotImplementedException();
-    }*/
 
     [RelayCommand]
     private void SetOutputDevice(string outputDeviceId)
     {
         OutputDevice = (OutputDevice)int.Parse(outputDeviceId);
 
-        if (OutputDeviceIsHandyKey)
+        if (OutputDeviceIsHandyKey || OutputDeviceIsFunscript)
             PeakMotionMode = true;
         else
             PeakMotionMode = false;
@@ -251,6 +276,75 @@ public partial class MainViewModel : ViewModelBase
 
     private void WriteTimer_Tick(object? sender, ElapsedEventArgs e)
     {
+        if (!outputThreadMutex.WaitOne(10))
+            return;
+        
+        try
+        {
+            TimeSpan outputTimeThreshold = DateTime.Now - referenceTime - TimeSpan.FromMilliseconds(FilterTimeMilliseconds);
+
+            StrokerPoint nextPoint = default;
+            bool shouldOutput = false;
+
+            while (outputPointBuffer.TryPeek(out StrokerPoint potentialNextPoint))
+            {
+                if (potentialNextPoint.Time <= outputTimeThreshold)
+                {
+                    nextPoint = outputPointBuffer.Dequeue();
+                    shouldOutput = true;
+                    //Debug.WriteLine($"POINT TIME 1: {nextPoint.Time} - Thread: {Thread.CurrentThread.ManagedThreadId}");
+                }
+                else
+                    break;
+            }
+
+            if (shouldOutput)
+            {
+                TimeSpan writeDuration = DateTime.Now - lastWriteTime - TimeSpan.FromMilliseconds(1);
+                lastWriteTime = DateTime.Now;
+
+                bool didOutput = true;
+
+                if (writeDuration.TotalSeconds < 2)
+                {
+                    if (OutputDeviceIsButtplugIo && (buttplugIoApi?.IsConnected ?? false))
+                    {
+                        buttplugIoApi?.SendPosition(Math.Clamp(nextPoint.Position, 0, 1), writeDuration * 2.0);//TimeSpan.FromMilliseconds(WriteCommandDuration));
+                    }
+                    else if (OutputDeviceIsHandyKey && (handyOnlineApi?.IsConnected ?? false))
+                    {
+                        handyOnlineApi?.SendPosition(Math.Clamp(nextPoint.Position, 0, 1), writeDuration);//TimeSpan.FromMilliseconds(WriteCommandDuration));
+                    }
+                    else if (OutputDeviceIsFunscript)
+                    {
+                        if (funscriptRecorder?.IsRecording ?? false)
+                        {
+                            funscriptRecorder?.PutPosition(nextPoint.Position);
+                            //Debug.WriteLine($"POINT TIME 2: {nextPoint.Time} - Thread: {Thread.CurrentThread.ManagedThreadId}");
+                        }
+                        else
+                            didOutput = false;
+                    }
+                }
+                else
+                    didOutput = false;
+
+                if (didOutput)
+                    SendPointToOutputPositionChart(nextPoint.Position, referenceTime + nextPoint.Time);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine("Failed to output value: " + ex.Message);
+        }
+        finally
+        {
+            outputThreadMutex.ReleaseMutex();
+        }
+
+        return;
+
+
         bool shouldSendPosition = false;
         double positionToSend = 1.0;
 
@@ -258,9 +352,10 @@ public partial class MainViewModel : ViewModelBase
         {
             // Direct forwarding, write a new position to the output device if the input position has changed
             var difference = Math.Abs(position - previousPosition);
-            if (difference > 0.05)
+            if (difference > 0.02 || DateTime.Now - lastWriteTime > TimeSpan.FromSeconds(1))
             {
                 shouldSendPosition = true;
+                lastWriteTime = DateTime.Now;
                 positionToSend = position;
 
                 previousPosition = position;
@@ -326,15 +421,23 @@ public partial class MainViewModel : ViewModelBase
 
             writeCommandsOngoing++;
 
-            if (OutputDeviceIsButtplugIo && (buttplugIoModel?.IsConnected ?? false))
+            if (OutputDeviceIsButtplugIo && (buttplugIoApi?.IsConnected ?? false))
             {
-                buttplugIoModel?.SendPosition(Math.Clamp(positionToSend, 0, 1), TimeSpan.FromMilliseconds(WriteCommandDuration));
+                buttplugIoApi?.SendPosition(Math.Clamp(positionToSend, 0, 1), TimeSpan.FromMilliseconds(WriteCommandDuration));
                 SendPointToOutputPositionChart(positionToSend);
             }
-            else if (OutputDeviceIsHandyKey && (handyOnlineApiModel?.IsConnected ?? false))
+            else if (OutputDeviceIsHandyKey && (handyOnlineApi?.IsConnected ?? false))
             {
-                handyOnlineApiModel?.SendPosition(Math.Clamp(positionToSend, 0, 1), TimeSpan.FromMilliseconds(WriteCommandDuration));
+                handyOnlineApi?.SendPosition(Math.Clamp(positionToSend, 0, 1), TimeSpan.FromMilliseconds(WriteCommandDuration));
                 SendPointToOutputPositionChart(positionToSend);
+            }
+            else if (OutputDeviceIsFunscript)
+            {
+                if (funscriptRecorder?.IsRecording ?? false)
+                {
+                    funscriptRecorder?.PutPosition(positionToSend);
+                    SendPointToOutputPositionChart(positionToSend);
+                }
             }
 
             writeCommandsOngoing--;
@@ -343,14 +446,15 @@ public partial class MainViewModel : ViewModelBase
 
     private void SensorReadTimer_Tick(object? sender, ElapsedEventArgs e)
     {
-        if (isCalibrating)
+        if (isCalibrating || !inputThreadMutex.WaitOne(10))
             return;
 
         try
         {
-            if (InputDeviceIsTeledong && teledongModel != null && (teledongModel?.State != TeledongState.NotConnected))
+            // Get raw position
+            if (InputDeviceIsTeledong && teledongApi != null && (teledongApi?.State != TeledongState.NotConnected))
             {
-                position = teledongModel?.GetPosition() ?? 1.0;
+                position = teledongApi?.GetPosition() ?? 1.0;
                 SendPointToInputPositionChart(position);
 
                 if (DebugMode)
@@ -359,8 +463,8 @@ public partial class MainViewModel : ViewModelBase
                     {
                         string debugString = "";
                         
-                        var rawValues = teledongModel!.GetRawSensorValues(false).ToList();
-                        var calibratedValues = teledongModel!.GetRawSensorValues(true).ToList();
+                        var rawValues = teledongApi!.GetRawSensorValues(false).ToList();
+                        var calibratedValues = teledongApi!.GetRawSensorValues(true).ToList();
 
                         if (rawValues != null && calibratedValues != null)
                         {
@@ -369,11 +473,6 @@ public partial class MainViewModel : ViewModelBase
                                 debugString += $"{((int)rawValues[i]).ToString("X2")} ";
                             }
                             debugString += "\n";
-                            /*for (int i = 0; i < rawValues.Count(); i++)
-                            {
-                                debugString += $"{calibratedValues[i].ToString("X2")},";
-                            }
-                            debugString += "\n";*/
                         }
 
                         SensorValuesDebugString = debugString;
@@ -386,10 +485,33 @@ public partial class MainViewModel : ViewModelBase
             {
                 SendPointToInputPositionChart(position);
             }
+
+            // Filtering before queueing output
+            var now = DateTime.Now - referenceTime;
+
+            inputPointBuffer.Add(new StrokerPoint(position, now));
+
+            if ((now - inputPointBuffer.First().Time) > TimeSpan.FromMilliseconds(FilterTimeMilliseconds))
+            {
+                List<StrokerPoint> processedPointBuffer = RamerDouglasPeuckerNetV2.RamerDouglasPeucker.Reduce(inputPointBuffer.ToList(), FilterEpsilon);
+                Debug.WriteLine($"Reduced from {inputPointBuffer.Count} points to {processedPointBuffer.Count} points.");
+
+                foreach (var point in processedPointBuffer.Skip(1))
+                {
+                    outputPointBuffer.Enqueue(point);
+                }
+
+                inputPointBuffer.Clear();
+            }
+
         }
         catch (Exception ex)
         {
             Debug.WriteLine("Failed to read sensor: " + ex.Message);
+        }
+        finally
+        {
+            inputThreadMutex.ReleaseMutex();
         }
     }
 
@@ -412,10 +534,10 @@ public partial class MainViewModel : ViewModelBase
         PositionChartMaxX = chartNowTime.TotalSeconds;
     }
 
-    private void SendPointToOutputPositionChart(double newPosition)
+    private void SendPointToOutputPositionChart(double newPosition, DateTime time)
     {
         var outputPositionSeriesValues = OutputPositionSeries[0].Values!.Cast<ObservablePoint>().ToList();
-        var chartNowTime = (DateTime.Now - chartStartTime);
+        var chartNowTime = (time - chartStartTime);
 
         outputPositionSeriesValues.Add(new ObservablePoint(chartNowTime.TotalSeconds, newPosition));
         var firstPoint = outputPositionSeriesValues.FirstOrDefault();
@@ -427,8 +549,20 @@ public partial class MainViewModel : ViewModelBase
 
         OutputPositionSeries[0].Values = outputPositionSeriesValues;
 
-        PositionChartMinX = (chartNowTime - TimeSpan.FromSeconds(5)).TotalSeconds;
-        PositionChartMaxX = chartNowTime.TotalSeconds;
+        if (chartNowTime.TotalSeconds > PositionChartMaxX)
+        {
+            PositionChartMinX = (chartNowTime - TimeSpan.FromSeconds(5)).TotalSeconds;
+            PositionChartMaxX = chartNowTime.TotalSeconds;
+        }
+        else
+        {
+            //Debug.WriteLine("Warning: Chart. " + chartNowTime + "   " + DateTime.Now);
+        }
+    }
+
+    private void SendPointToOutputPositionChart(double newPosition)
+    {
+        SendPointToOutputPositionChart(newPosition, DateTime.Now);
     }
 
     [RelayCommand]
@@ -442,22 +576,22 @@ public partial class MainViewModel : ViewModelBase
     {
         if (InputDeviceIsTeledong)
         {
-            teledongModel ??= new();
+            teledongApi ??= new();
 
-            if (teledongModel.Connect())
+            if (teledongApi.Connect())
             {
                 try
                 {
-                    Debug.WriteLine("Found Teledong. Firmware version: " + teledongModel.GetFirmwareVersion());
+                    Debug.WriteLine("Found Teledong. Firmware version: " + teledongApi.GetFirmwareVersion());
                 }
                 catch (Exception ex) { }
 
-                teledongModel.LoadCalibration();
+                teledongApi.LoadCalibration();
 
-                if (TeledongSunlightMode != teledongModel.SunlightMode)
-                    TeledongSunlightMode = teledongModel.SunlightMode;
+                if (TeledongSunlightMode != teledongApi.SunlightMode)
+                    TeledongSunlightMode = teledongApi.SunlightMode;
 
-                TeledongFirmwareVersion = teledongModel.GetFirmwareVersion();
+                TeledongFirmwareVersion = teledongApi.GetFirmwareVersion();
             }
             else
                 Debug.WriteLine("Couldn't connect to Teledong");
@@ -471,14 +605,25 @@ public partial class MainViewModel : ViewModelBase
 
         if (OutputDeviceIsButtplugIo)
         {
-            buttplugIoModel ??= new();
+            buttplugIoApi ??= new();
         }
         else if (OutputDeviceIsHandyKey)
         {
-            handyOnlineApiModel ??= new();
-            handyOnlineApiModel.ConnectionKey = TheHandyConnectionKey;
-            await handyOnlineApiModel.SetMode();
+            handyOnlineApi ??= new();
+            handyOnlineApi.ConnectionKey = TheHandyConnectionKey;
+            await handyOnlineApi.SetMode();
         }
+        else if (OutputDeviceIsFunscript)
+        {
+            funscriptRecorder ??= new();
+            funscriptRecorder.StartRecording();
+        }
+    }
+
+    [RelayCommand]
+    private void StopAndSaveFunscriptRecording()
+    {
+        funscriptRecorder?.StopRecording();
     }
 
     [RelayCommand]
@@ -488,7 +633,7 @@ public partial class MainViewModel : ViewModelBase
         {
             try
             {
-                teledongModel?.SendNonQueryCommand(TeledongCommands.EnterBootloader);
+                teledongApi?.SendNonQueryCommand(TeledongCommands.EnterBootloader);
             }
             catch (Exception ex) { }
         }
@@ -526,27 +671,33 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnTeledongSunlightModeChanged(bool value)
     {
-        teledongModel?.SetSunlightMode(value);
+        teledongApi?.SetSunlightMode(value);
+    }
+
+    partial void OnFunscriptOutputPathChanged(string value)
+    {
+        if (funscriptRecorder != null)
+            funscriptRecorder.OutputPath = value;
     }
 
     private void DisconnectInputDevice()
     {
-        teledongModel?.Disconnect();
+        teledongApi?.Disconnect();
     }
 
     [RelayCommand]
     private async Task CalibrateTeledong()
     {
-        if (teledongModel == null || teledongModel.State == TeledongState.NotConnected || isCalibrating)
+        if (teledongApi == null || teledongApi.State == TeledongState.NotConnected || isCalibrating)
             return;
 
         isCalibrating = true;
         try
         {
-            await (teledongModel?.CalibrateAsync() ?? Task.CompletedTask);
+            await (teledongApi?.CalibrateAsync() ?? Task.CompletedTask);
 
-            if (TeledongSunlightMode != teledongModel.SunlightMode)
-                TeledongSunlightMode = teledongModel.SunlightMode;
+            if (TeledongSunlightMode != teledongApi.SunlightMode)
+                TeledongSunlightMode = teledongApi.SunlightMode;
         }
         catch (Exception ex)
         {
@@ -557,8 +708,8 @@ public partial class MainViewModel : ViewModelBase
 
     private void DisconnectOutputDevice()
     {
-        buttplugIoModel?.Disconnect();
-        handyOnlineApiModel?.Disconnect();
+        buttplugIoApi?.Disconnect();
+        handyOnlineApi?.Disconnect();
     }
 
     public void SaveAndFree()
@@ -661,6 +812,43 @@ public partial class MainViewModel : ViewModelBase
             position = Math.Clamp(position - (pointerYPosition - previousPointerYPosition) / 200.0, 0.0, 1.0);
             previousPointerYPosition = pointerYPosition;
         }
+    }
+    
+}
+
+public struct StrokerPoint
+{
+    public StrokerPoint(double position, TimeSpan time)
+    {
+        Position = position;
+        Time = time;
+    }
+
+    public double Position; // From 0 to 1
+    public TimeSpan Time;
+
+    public double X => Position;
+    public double Y => Time.TotalSeconds;
+
+    public StrokerPoint AddLatency(double latency)
+    {
+        return new StrokerPoint(Position, Time.Add(TimeSpan.FromMilliseconds(latency)));
+    }
+
+    public override bool Equals(object obj)
+    {
+        if (obj is StrokerPoint point)
+        {
+            if (this.Position != point.Position || this.Time != point.Time) 
+                return false;
+            return true;
+        }
+        return false;
+    }
+
+    public override int GetHashCode()
+    {
+        return base.GetHashCode();
     }
 }
 
