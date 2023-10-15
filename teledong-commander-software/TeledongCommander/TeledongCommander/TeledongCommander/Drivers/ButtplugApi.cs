@@ -1,4 +1,5 @@
 ﻿using Buttplug;
+using Google.Protobuf.WellKnownTypes;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,11 +11,11 @@ using System.Timers;
 
 namespace TeledongCommander;
 
-public class ButtplugApi
+public class ButtplugApi : OutputDevice
 {
-    public bool IsConnected => client.Devices.Count() > 0 && client.Connected;
+    public override bool IsConnected => client.Devices.Count() > 0 && client.Connected;
 
-    public string StatusText { 
+    public override string StatusText { 
         get 
         {
             var deviceCount = client.Devices.Count();
@@ -34,11 +35,27 @@ public class ButtplugApi
 
     public ButtplugApi()
     {
-        var connector = new ButtplugEmbeddedConnectorOptions() { ServerName = "MyServer" };
+        Processor = new("buttplugApi");
+        Processor.Output += Processor_Output;
         client = new ButtplugClient("MyClient");
+    }
+
+    private async void Processor_Output(object? sender, OutputEventArgs e)
+    {
+        var sendCmdTask = client.Devices.FirstOrDefault()?.SendLinearCmd((uint)e.Duration.TotalMilliseconds, e.Position);
+        if (sendCmdTask != null)
+            await sendCmdTask;
+        Debug.WriteLine("Sent pos: " + e.Position.ToString("N2") + " , " + e.Duration.TotalMilliseconds);
+    }
+
+    public override async Task Connect()
+    {
+        await Disconnect();
+
+        var connector = new ButtplugEmbeddedConnectorOptions() { ServerName = "MyServer" };
         client.ConnectAsync(connector).Wait();
         client.StartScanningAsync().Wait();
-        Thread.Sleep(2000); 
+        Thread.Sleep(2000);
         client.StopScanningAsync().Wait();
 
         Debug.WriteLine("Buttplug.io client currently knows about these devices:");
@@ -48,25 +65,17 @@ public class ButtplugApi
         }
     }
 
-    public async Task SendPosition(double position, TimeSpan duration)
+    public async Task Stop()
     {
-        var sendCmdTask = client.Devices.FirstOrDefault()?.SendLinearCmd((uint)duration.TotalMilliseconds, position);
-        if (sendCmdTask != null)
-            await sendCmdTask;
-        Debug.WriteLine("Sent pos: "+position.ToString("N2") + " , " + duration.TotalMilliseconds);
+        await client.StopAllDevicesAsync();
     }
 
-    public void Stop()
-    {
-        client.StopAllDevicesAsync();
-    }
-
-    public void Disconnect()
+    public override async Task Disconnect()
     {
         try
         {
-            Stop();
-            client.DisconnectAsync();
+            await Stop();
+            await client.DisconnectAsync();
         }
         catch
         { }

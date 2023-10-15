@@ -13,8 +13,11 @@ namespace TeledongCommander
     /// <summary>
     /// Class for recording a funscript in real-time
     /// </summary>
-    public class FunscriptRecorder
+    public class FunscriptRecorder : OutputDevice 
     {
+        public override bool IsConnected => true;
+        public override string StatusText => (IsRecording) ? $"Recording: {RecordingDuration.ToString(@"mm\:ss")}" : "Not recording.";
+
         public string OutputPath { get; set; } = "";
         public bool IsRecording { get; set; } = false;
         public TimeSpan RecordingDuration => IsRecording ? (DateTime.Now - startTime) : TimeSpan.Zero;
@@ -24,6 +27,31 @@ namespace TeledongCommander
 
         DateTime startTime = DateTime.Now;
         List<FunscriptPoint> points = new List<FunscriptPoint>();
+
+        public FunscriptRecorder()
+        {
+            Processor = new("funscript");
+            Processor.Output += Processor_Output;
+        }
+
+        private void Processor_Output(object? sender, OutputEventArgs e)
+        {
+            if (!IsRecording)
+                return;
+
+            points.Add(new FunscriptPoint(e.Position, DateTime.Now - startTime));
+        }
+
+        public override Task Connect()
+        {
+            StartRecording();
+            return Task.CompletedTask;
+        }
+
+        public override async Task Disconnect()
+        {
+            await StopRecording();
+        }
 
         /// <summary>
         /// Initializes a recording. After calling this you can start calling PutPosition() for new points.
@@ -39,21 +67,9 @@ namespace TeledongCommander
         }
 
         /// <summary>
-        /// Adds a new point to the ongoing recording.
-        /// </summary>
-        /// <param name="position">Position from 0 to 1</param>
-        public void PutPosition(double position)
-        {
-            if (!IsRecording)
-                return;
-
-            points.Add(new FunscriptPoint(position, DateTime.Now - startTime));
-        }
-
-        /// <summary>
         /// Stops and saves the ongoing recording to an auto-generated filename in the folder OutputDirectory.
         /// </summary>
-        public void StopRecording()
+        public async Task StopRecording()
         {
             IsRecording = false;
 
@@ -94,8 +110,8 @@ namespace TeledongCommander
             {
                 var jsonWriter = new Utf8JsonWriter(fileStream, new JsonWriterOptions() { Indented = false });
                 json.WriteTo(jsonWriter);
-                jsonWriter.Flush();
-                fileStream.Flush();
+                await jsonWriter.FlushAsync();
+                await fileStream.FlushAsync();
             }
         }
     }

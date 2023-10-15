@@ -29,6 +29,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Platform.Storage;
 using Splat;
+using System.Collections.ObjectModel;
 
 namespace TeledongCommander.ViewModels;
 
@@ -60,7 +61,6 @@ public partial class MainViewModel : ViewModelBase
     private int teledongFirmwareVersion;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(OutputDeviceIsNone))]
     [NotifyPropertyChangedFor(nameof(OutputDeviceIsHandyKey))]
     [NotifyPropertyChangedFor(nameof(OutputDeviceIsButtplugIo))]
     [NotifyPropertyChangedFor(nameof(OutputDeviceIsIntiface))]
@@ -70,16 +70,18 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InputDeviceIsTeledong))]
     [NotifyPropertyChangedFor(nameof(InputDeviceIsMouse))]
-    private InputDevice inputDevice;
+    private InputDevices inputDevice;
 
-    public bool OutputDeviceIsNone => OutputDevice == OutputDevice.None;
-    public bool OutputDeviceIsHandyKey => OutputDevice == OutputDevice.HandyHttpApi;
-    public bool OutputDeviceIsButtplugIo => OutputDevice == OutputDevice.ButtplugIo;
-    public bool OutputDeviceIsIntiface => OutputDevice == OutputDevice.Intiface;
-    public bool OutputDeviceIsFunscript => OutputDevice == OutputDevice.Funscript;
+    public bool OutputDeviceIsHandyKey => OutputDevice is HandyOnlineApi;
+    public bool OutputDeviceIsButtplugIo => OutputDevice is ButtplugApi;
+    public bool OutputDeviceIsIntiface => false;
+    public bool OutputDeviceIsFunscript => OutputDevice is FunscriptRecorder;
 
-    public bool InputDeviceIsTeledong => InputDevice == InputDevice.Teledong;
-    public bool InputDeviceIsMouse => InputDevice == InputDevice.Mouse;
+    public bool InputDeviceIsTeledong => InputDevice == InputDevices.Teledong;
+    public bool InputDeviceIsMouse => InputDevice == InputDevices.Mouse;
+
+    [ObservableProperty]
+    private ObservableCollection<UserControl> outputDeviceListItems = new();
 
     [ObservableProperty]
     private double readInterval = 50;
@@ -151,9 +153,9 @@ public partial class MainViewModel : ViewModelBase
     public string FunscriptOutputPathAbbreviated => (FunscriptOutputPath.Length > 22 ? "..." : "") + FunscriptOutputPath.Substring(Math.Max(0, FunscriptOutputPath.Length - 22));
 
     TeledongManager? teledongApi;
-    ButtplugApi? buttplugIoApi;
-    HandyOnlineApi? handyOnlineApi;
-    FunscriptRecorder? funscriptRecorder = new();
+    ButtplugApi buttplugIoApi = new();
+    HandyOnlineApi handyOnlineApi = new();
+    FunscriptRecorder funscriptRecorder = new();
 
     System.Timers.Timer sensorReadTimer = new();
     System.Timers.Timer writeTimer = new();
@@ -178,8 +180,17 @@ public partial class MainViewModel : ViewModelBase
     bool isCalibrating = false;
     DateTime chartStartTime = DateTime.Now - TimeSpan.FromSeconds(10);
 
+    Dictionary<OutputDevices, OutputDevice> outputDeviceModels;
+
     public MainViewModel()
     {
+        outputDeviceModels = new()
+        {
+            [OutputDevices.ButtplugIo] = buttplugIoApi,
+            [OutputDevices.HandyHttpApi] = handyOnlineApi,
+            [OutputDevices.Funscript] = funscriptRecorder
+        };
+
         positionChartXAxes = new Axis[]
         {
             new Axis
@@ -210,8 +221,8 @@ public partial class MainViewModel : ViewModelBase
         sensorReadTimer.Start();
         uiUpdateTimer.Start();
 
-        OutputDevice = OutputDevice.HandyHttpApi;
-        InputDevice = InputDevice.Teledong;
+        OutputDevice = outputDeviceModels[OutputDevices.HandyHttpApi];
+        InputDevice = InputDevices.Teledong;
     }
 
     private void UiUpdateTimer_Tick(object? sender, EventArgs e)
@@ -240,27 +251,17 @@ public partial class MainViewModel : ViewModelBase
         else
             InputDeviceStatusText = "No input device selected";
 
-        if (OutputDeviceIsButtplugIo)
-            OutputDeviceStatusText = buttplugIoApi?.StatusText ?? "Not connected";
-        else if (OutputDeviceIsHandyKey)
-            OutputDeviceStatusText = handyOnlineApi?.StatusText ?? "Not connected";
-        else if (OutputDeviceIsIntiface)
-            OutputDeviceStatusText = "Not yet supported";
-        else if (OutputDeviceIsFunscript)
-            OutputDeviceStatusText = (funscriptRecorder?.IsRecording ?? false) ? $"Recording: {funscriptRecorder!.RecordingDuration.ToString(@"mm\:ss")}" : "Not recording.";
-        else
-            OutputDeviceStatusText = "No output device selected";
+        OutputDeviceStatusText = OutputDevice.StatusText ?? "Not connected";
 
         CanClickConnectInputDeviceButton = InputDeviceIsTeledong;
-        CanClickConnectOutputDeviceButton = !OutputDeviceIsNone;
-
+        CanClickConnectOutputDeviceButton = true;
     }
 
 
     [RelayCommand]
     private void SetOutputDevice(string outputDeviceId)
     {
-        OutputDevice = (OutputDevice)int.Parse(outputDeviceId);
+        OutputDevice = outputDeviceModels[(OutputDevices)int.Parse(outputDeviceId)];
 
         if (OutputDeviceIsHandyKey || OutputDeviceIsFunscript)
             PeakMotionMode = true;
@@ -271,7 +272,7 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void SetInputDevice(string inputDeviceId)
     {
-        InputDevice = (InputDevice)int.Parse(inputDeviceId);
+        InputDevice = (InputDevices)int.Parse(inputDeviceId);
     }
 
     private void WriteTimer_Tick(object? sender, ElapsedEventArgs e)
@@ -307,7 +308,15 @@ public partial class MainViewModel : ViewModelBase
 
                 if (writeDuration.TotalSeconds < 2)
                 {
-                    if (OutputDeviceIsButtplugIo && (buttplugIoApi?.IsConnected ?? false))
+                    OutputDevice?.SendPosition(Math.Clamp(nextPoint.Position, 0, 1), writeDuration);
+
+                    if (OutputDeviceIsFunscript)
+                    {
+                        if (!funscriptRecorder.IsRecording)
+                            didOutput = false;
+                    }
+
+                    /*if (OutputDeviceIsButtplugIo && (buttplugIoApi?.IsConnected ?? false))
                     {
                         buttplugIoApi?.SendPosition(Math.Clamp(nextPoint.Position, 0, 1), writeDuration * 2.0);//TimeSpan.FromMilliseconds(WriteCommandDuration));
                     }
@@ -324,7 +333,7 @@ public partial class MainViewModel : ViewModelBase
                         }
                         else
                             didOutput = false;
-                    }
+                    }*/
                 }
                 else
                     didOutput = false;
@@ -421,7 +430,9 @@ public partial class MainViewModel : ViewModelBase
 
             writeCommandsOngoing++;
 
-            if (OutputDeviceIsButtplugIo && (buttplugIoApi?.IsConnected ?? false))
+            OutputDevice.SendPosition(Math.Clamp(positionToSend, 0, 1), TimeSpan.FromMilliseconds(WriteCommandDuration));
+
+            /*if (OutputDeviceIsButtplugIo && (buttplugIoApi?.IsConnected ?? false))
             {
                 buttplugIoApi?.SendPosition(Math.Clamp(positionToSend, 0, 1), TimeSpan.FromMilliseconds(WriteCommandDuration));
                 SendPointToOutputPositionChart(positionToSend);
@@ -438,7 +449,7 @@ public partial class MainViewModel : ViewModelBase
                     funscriptRecorder?.PutPosition(positionToSend);
                     SendPointToOutputPositionChart(positionToSend);
                 }
-            }
+            }*/
 
             writeCommandsOngoing--;
         }
@@ -598,26 +609,17 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    partial void OnTheHandyConnectionKeyChanged(string value)
+    {
+        handyOnlineApi.ConnectionKey = value;
+    }
+
     [RelayCommand]
     private async Task ConnectOutputDevice()
     {
         DisconnectOutputDevice();
 
-        if (OutputDeviceIsButtplugIo)
-        {
-            buttplugIoApi ??= new();
-        }
-        else if (OutputDeviceIsHandyKey)
-        {
-            handyOnlineApi ??= new();
-            handyOnlineApi.ConnectionKey = TheHandyConnectionKey;
-            await handyOnlineApi.SetMode();
-        }
-        else if (OutputDeviceIsFunscript)
-        {
-            funscriptRecorder ??= new();
-            funscriptRecorder.StartRecording();
-        }
+        await OutputDevice.Connect();
     }
 
     [RelayCommand]
@@ -649,13 +651,15 @@ public partial class MainViewModel : ViewModelBase
         PositionChartXAxes[0].MaxLimit = value;
     }
 
-    partial void OnInputDeviceChanged(InputDevice value)
+    partial void OnInputDeviceChanged(InputDevices value)
     {
+        DisconnectInputDevice();
         UpdateUiStatus();
     }
 
     partial void OnOutputDeviceChanged(OutputDevice value)
     {
+        DisconnectOutputDevice();
         UpdateUiStatus();
     }
 
@@ -708,8 +712,8 @@ public partial class MainViewModel : ViewModelBase
 
     private void DisconnectOutputDevice()
     {
-        buttplugIoApi?.Disconnect();
-        handyOnlineApi?.Disconnect();
+        foreach (var device in outputDeviceModels)
+            device.Value.Disconnect();
     }
 
     public void SaveAndFree()
@@ -750,7 +754,7 @@ public partial class MainViewModel : ViewModelBase
                         if (node.HasAttribute("OutputDevice"))
                         {
                             var outputDeviceName = node.GetAttribute("OutputDevice");
-                            OutputDevice = (OutputDevice)Enum.Parse(typeof(OutputDevice), outputDeviceName);
+                            OutputDevice = outputDeviceModels[(OutputDevices)Enum.Parse(typeof(OutputDevices), outputDeviceName)];
                         }
                         if (node.HasAttribute("PeakMotionMode"))
                         {
@@ -852,7 +856,7 @@ public struct StrokerPoint
     }
 }
 
-public enum OutputDevice : int
+public enum OutputDevices : int
 {
     None = 0,
     HandyHttpApi = 1,
@@ -861,7 +865,7 @@ public enum OutputDevice : int
     Funscript = 4
 }
 
-public enum InputDevice : int
+public enum InputDevices : int
 {
     Teledong = 0,
     Mouse = 1

@@ -16,7 +16,7 @@ namespace TeledongCommander.Views
         {
             InitializeComponent();
 
-            inputPositionChart.YAxes = outputPositionChart.YAxes = new Axis[]
+            inputPositionChart.YAxes /*= outputPositionChart.YAxes*/ = new Axis[]
             {
                 new Axis
                 {

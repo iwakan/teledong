@@ -37,7 +37,7 @@
 					<RowDefinition Height="6*"></RowDefinition>
 				</Grid.RowDefinitions>
 				
-				<TextBlock Text="Input" Grid.Row="0" HorizontalAlignment="Center"></TextBlock>
+				<TextBlock Text="Input device" Grid.Row="0" HorizontalAlignment="Center"></TextBlock>
 				<Separator VerticalAlignment="Bottom" Margin="0,0,0,5" />
 
 				<StackPanel Grid.Row="1">
@@ -46,7 +46,7 @@
 					<RadioButton GroupName="InputDevice" Content="Mouse" Command="{Binding SetInputDeviceCommand}" CommandParameter="1" ToolTip.Tip="Gets movement from the user's computer mouse." IsChecked="False"></RadioButton>
 				</StackPanel>
 
-				<Button Content="Connect" Command="{Binding ConnectInputDeviceCommand}" IsEnabled="{Binding CanClickConnectInputDeviceButton}" Margin="0,0,0,20" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom"></Button>
+				<Button Content="Connect" Command="{Binding ConnectInputDeviceCommand}" IsVisible="{Binding InputDeviceIsTeledong}" IsEnabled="{Binding CanClickConnectInputDeviceButton}" Margin="0,0,0,20" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom"></Button>
 				
 				<Separator Grid.Row="1" Margin="0,0,0,5" VerticalAlignment="Bottom"/>
 
@@ -84,12 +84,20 @@
 					<RowDefinition Height="6*"></RowDefinition>
 				</Grid.RowDefinitions>
 
-				<TextBlock Text="Output" HorizontalAlignment="Center"></TextBlock>
-				<Separator VerticalAlignment="Bottom" Margin="0,0,0,5"/>
+				<TextBlock Text="Output devices" HorizontalAlignment="Center"></TextBlock>
 
-				<StackPanel Grid.Row="1">
+				<Border Margin="0,40,0,0" Height="200" VerticalAlignment="Top" BorderBrush="Gray" BorderThickness="1" Background="#30000000">
+					<ItemsControl ItemsSource="{Binding OutputDeviceListItems}">
+					</ItemsControl>
+				</Border>
+				
+				
+				
+				<!--<Separator VerticalAlignment="Bottom" Margin="0,0,0,5"/>
+
+				<StackPanel Grid.Row="1">-->
 					<!--Make sure the command parameter IDs match the enum values. Too bothersome to pass enums directly in xaml-->
-					<DockPanel>
+				<!--<DockPanel>
 						<RadioButton ToolTip.Tip="Sends the position to The Handy over the internet using a connection key." Command="{Binding SetOutputDeviceCommand}" CommandParameter="1" GroupName="OutputDevice" IsChecked="True" Content="The Handy key: "></RadioButton>
 						<TextBox Text="{Binding TheHandyConnectionKey}" Margin="10,0,10,0"></TextBox>
 					</DockPanel>
@@ -110,18 +118,18 @@
 					</DockPanel>
 					
 					<lvc:CartesianChart x:Name="outputPositionChart" TooltipPosition="Hidden" BorderBrush="{StaticResource PrimaryBackground}" BorderThickness="1" Height="70" Series="{Binding OutputPositionSeries}" XAxes="{Binding PositionChartXAxes}" AnimationsSpeed="0" ZoomMode="None">
-					</lvc:CartesianChart>
+					</lvc:CartesianChart>--><!--
 
-					<!--<ToggleSwitch Margin="0,20,0,0" Content="Motion mode" OffContent="Continuous" OnContent="Peak" IsChecked="{Binding PeakMotionMode}" ToolTip.Tip="In 'Peak' motion mode, the position is written only as the direction of motion changes. This results in more jagged motion, but should work better if the connection to the device has limited bandwidth or high latency, such as connections over the internet. For local connections, 'continuous' mode is preferred as the motion is smoother and more accurate."></ToggleSwitch>-->
+					--><!--<ToggleSwitch Margin="0,20,0,0" Content="Motion mode" OffContent="Continuous" OnContent="Peak" IsChecked="{Binding PeakMotionMode}" ToolTip.Tip="In 'Peak' motion mode, the position is written only as the direction of motion changes. This results in more jagged motion, but should work better if the connection to the device has limited bandwidth or high latency, such as connections over the internet. For local connections, 'continuous' mode is preferred as the motion is smoother and more accurate."></ToggleSwitch>--><!--
 
-					<Button Content="Stop and save recording" Command="{Binding StopAndSaveFunscriptRecordingCommand}" IsVisible="{Binding OutputDeviceIsFunscript}"/>
+				--><!--<Button Content="Stop and save recording" Command="{Binding StopAndSaveFunscriptRecordingCommand}" IsVisible="{Binding OutputDeviceIsFunscript}"/>
 					
 					<DockPanel IsVisible="{Binding OutputDeviceIsFunscript}">
 						<Button x:Name="test" Content="Set file:" Click="ChangeFunscriptPathButton_Clicked"/>
 						<TextBlock Margin="5,0,0,0" VerticalAlignment="Center" Text="{Binding FunscriptOutputPathAbbreviated}"></TextBlock>
 					</DockPanel>
 
-				</StackPanel>
+				</StackPanel>-->
 				
 			</Grid>
 		</Border>

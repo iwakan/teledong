@@ -10,11 +10,12 @@ using System.Timers;
 
 namespace TeledongCommander;
 
-public class HandyOnlineApi
+public class HandyOnlineApi : OutputDevice
 {
-    public bool IsConnected => successfullyConnected;
+    public override bool IsConnected => successfullyConnected;
+    public override bool HasError => !string.IsNullOrEmpty(errorMessage);
 
-    public string StatusText
+    public override string StatusText
     {
         get
         {
@@ -28,6 +29,7 @@ public class HandyOnlineApi
     public string ConnectionKey { get; set; } = "";
 
     const string baseApiUrl = "https://www.handyfeeling.com/api/handy/v2/";
+    string? errorMessage = null;
     HttpClient httpClient;
     bool isClosed = false;
     bool successfullyConnected = false;
@@ -38,11 +40,13 @@ public class HandyOnlineApi
 
     public HandyOnlineApi()
     {
+        Processor = new("handyOnlineApi");
+        Processor.Output += Processor_Output;
         httpClient = new HttpClient();
         httpClient.Timeout = TimeSpan.FromSeconds(2);
     }
 
-    public void SendPosition(double position, TimeSpan maxDuration)
+    private void Processor_Output(object? sender, OutputEventArgs e)
     {
         var now = DateTime.Now;
 
@@ -51,7 +55,7 @@ public class HandyOnlineApi
             previousModeSetTime = now;
         }
 
-        TimeSpan duration = TimeSpan.FromMilliseconds(Math.Clamp((now - previousCommandTime).TotalMilliseconds - 100, 100, maxDuration.TotalMilliseconds * 3));
+        TimeSpan duration = TimeSpan.FromMilliseconds(Math.Clamp((now - previousCommandTime).TotalMilliseconds - 100, 100, e.Duration.TotalMilliseconds * 3));
         previousCommandTime = now;
 
         if (criticalMessageLock.WaitOne(0))
@@ -78,7 +82,7 @@ public class HandyOnlineApi
                 stopOnTarget = true,
                 immediateResponse = true,
                 duration = (int)duration.TotalMilliseconds,
-                position = position * 100.0,
+                position = e.Position * 100.0,
             };
             request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
             request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -86,13 +90,18 @@ public class HandyOnlineApi
             try
             {
                 httpClient.SendAsync(request);
-                Debug.WriteLine("Sent to handy API: " + position.ToString("N2") + " , " + contentRaw.duration /*+ ": " + result.ReasonPhrase*/);
+                Debug.WriteLine("Sent to handy API: " + e.Position.ToString("N2") + " , " + contentRaw.duration /*+ ": " + result.ReasonPhrase*/);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("Failed: " + ex.Message); 
+                Debug.WriteLine("Failed: " + ex.Message);
             }
         }
+    }
+
+    public override async Task Connect()
+    {
+        await SetMode();
     }
 
     public async Task<int> GetMode()
@@ -155,8 +164,9 @@ public class HandyOnlineApi
         }
     }
 
-    public void Disconnect()
+    public override Task Disconnect()
     {
         httpClient.CancelPendingRequests();
+        return Task.CompletedTask;
     }
 }
