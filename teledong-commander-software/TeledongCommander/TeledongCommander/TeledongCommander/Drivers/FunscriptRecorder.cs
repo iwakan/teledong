@@ -15,10 +15,10 @@ namespace TeledongCommander
     /// </summary>
     public class FunscriptRecorder : OutputDevice 
     {
-        public override bool IsConnected => true;
+        public override bool IsStarted => IsRecording;
         public override string StatusText => (IsRecording) ? $"Recording: {RecordingDuration.ToString(@"mm\:ss")}" : "Not recording.";
 
-        public string OutputPath { get; set; } = "";
+        public string OutputPath { get; set; }
         public bool IsRecording { get; set; } = false;
         public TimeSpan RecordingDuration => IsRecording ? (DateTime.Now - startTime) : TimeSpan.Zero;
         public TimeSpan TimeShiftForward { get; set; } = TimeSpan.Zero;
@@ -28,9 +28,10 @@ namespace TeledongCommander
         DateTime startTime = DateTime.Now;
         List<FunscriptPoint> points = new List<FunscriptPoint>();
 
-        public FunscriptRecorder()
+        public FunscriptRecorder() : base()
         {
-            Processor = new("funscript");
+            OutputPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), $"teledong_{DateTime.Now.ToShortDateString()}.funscript");
+
             Processor.Output += Processor_Output;
         }
 
@@ -42,13 +43,13 @@ namespace TeledongCommander
             points.Add(new FunscriptPoint(e.Position, DateTime.Now - startTime));
         }
 
-        public override Task Connect()
+        public override Task Start()
         {
             StartRecording();
             return Task.CompletedTask;
         }
 
-        public override async Task Disconnect()
+        public override async Task Stop()
         {
             await StopRecording();
         }
@@ -59,11 +60,12 @@ namespace TeledongCommander
         public void StartRecording()
         {
             if (string.IsNullOrEmpty(OutputPath))
-                OutputPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), $"teledong_{DateTime.Now.ToShortDateString()}.funscript");
+                return; //Todo notify error
 
             points.Clear();
             startTime = DateTime.Now;
             IsRecording = true;
+            TriggerStatusChanged();
         }
 
         /// <summary>
@@ -113,6 +115,8 @@ namespace TeledongCommander
                 await jsonWriter.FlushAsync();
                 await fileStream.FlushAsync();
             }
+
+            TriggerStatusChanged();
         }
     }
 

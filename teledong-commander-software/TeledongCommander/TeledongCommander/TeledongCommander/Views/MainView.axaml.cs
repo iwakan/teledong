@@ -44,26 +44,5 @@ namespace TeledongCommander.Views
             (DataContext as MainViewModel)?.SaveAndFree();
         }
 
-        private async void ChangeFunscriptPathButton_Clicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        {
-            var topLevel = TopLevel.GetTopLevel(this);
-            if (topLevel == null)
-                return;
-            var path = await topLevel!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-            {
-                Title = "Choose funscript file output path",
-            });
-            if (path == null)
-                return;
-
-            if (DataContext as MainViewModel is MainViewModel viewModel)
-            {
-                var filePath = path.Path.LocalPath;
-                if (Path.GetExtension(filePath) != ".funscript")
-                    filePath = Path.ChangeExtension(filePath, ".funscript");
-                viewModel.FunscriptOutputPath = filePath;
-            }
-        }
-
     }
 }

@@ -3,16 +3,16 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:TeledongCommander.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="60" Height="60"
-			 x:DataType="vm:OutputDeviceListItemViewModel"
-             x:Class="TeledongCommander.OutputDeviceListItem">
-
-	<Design.DataContext>
-		<!-- This only sets the DataContext for the previewer in an IDE, to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-		<vm:OutputDeviceListItemViewModel />
-	</Design.DataContext>
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="50" Height="50"
+			 x:DataType="vm:OutputDeviceViewModel"
+             x:Class="TeledongCommander.OutputDevicePreviewView">
 	
-  <Border CornerRadius="8" BorderBrush="#A0000000" BorderThickness="1" Padding="12,8,12,8">
+	<!-- This only sets the DataContext for the previewer in an IDE, to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+	<!--<Design.DataContext>
+		<vm:OutputDeviceViewModel />
+	</Design.DataContext>-->
+	
+  <Border BorderBrush="#90FFFFFF" Padding="8,2,8,2" BorderThickness="1">
 	  <Grid>
 		  <TextBlock Text="{Binding Title}"></TextBlock>
 		  <TextBlock Text="{Binding SecondaryTitle}" VerticalAlignment="Bottom" HorizontalAlignment="Left" ></TextBlock>

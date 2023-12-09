@@ -4,11 +4,7 @@ using LibUsbDotNet.Main;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
-using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,17 +15,28 @@ namespace Teledong;
 /// Depends on Libusb. You need the LibUsbDotNet NuGet package as well as libusb binaries (such as libusb-1.0.dll for Windows which can be downloaded from https://libusb.info/). 
 /// See Teledong Commander software source for example usage.
 /// </summary>
-public class TeledongManager
+public class Teledong
 {
     /// <summary>
     /// Get the current status of any connected Teledong.
     /// </summary>
-    public TeledongState State = TeledongState.NotConnected;
+    public TeledongState State { get; private set; } = TeledongState.NotConnected;
 
     /// <summary>
-    /// In sunlight mode, a sensor is considered obscured if it receives light rather than does not receive light. May work better for bright environments.
+    /// Is true if the current Teledong appears to be improperly calibrated (receiving values far outside the calibration bounds). Should prompt the user to start a new calibration.
     /// </summary>
-    public bool SunlightMode => sunlightMode;
+    public bool BadCalibrationWarning { get; private set; } = false;
+
+    /// <summary>
+    /// If true, then if the teledong thinks that the user completely let go of the device, it will report the most recent position rather than a positon of 0. 
+    /// Can avoid sudden jumps.
+    /// </summary>
+    public bool KeepPositionAtRelease { get; set; } = true;
+
+    /// <summary>
+    /// In sunlight mode, a sensor is considered obscured if it receives light rather than does not receive light. Should not be set manually, instead start a calibration which automatically chooses the best setting.
+    /// </summary>
+    public bool IsSunlightMode => sunlightMode;
 
     const ushort TELEDONG_PID = 0x8DF4;
     const ushort TELEDONG_VID = 0x10C4;
@@ -47,6 +54,10 @@ public class TeledongManager
     Mutex usbMutex = new Mutex();
     int firmwareVersion = 0;
     bool sunlightMode = false;
+    int badCalibrationCounter = 0;
+    const int badCalibrationThreshold = 200;
+    const int numPreviousPositions = 4;
+    double[] previousPositions = new double[numPreviousPositions] { 0, 0, 0, 0 };
 
     /// <summary>
     /// Scans for and connects to the Teledong over USB. Must be called before any other method.
@@ -65,7 +76,7 @@ public class TeledongManager
             }
         }
 
-        // Go through connectd USB devices, check if PID matches, connect and configure.
+        // Go through connected USB devices, check if PID matches, connect and configure.
         UsbDevice.ForceLibUsbWinBack = true;
         try
         {
@@ -82,11 +93,7 @@ public class TeledongManager
                             libUsbDevice.ClaimInterface(0);
                         }
 
-                        //var setupPacket = new UsbSetupPacket(0x41, 0, 0xFFFF, 0, 0);
                         byte[] buffer = new byte[128];
-                        //if (device.ControlTransfer(ref setupPacket, buffer, 0, out int lengthTransferred) == false)
-                        //    return false;
-
                         var setupPacket = new UsbSetupPacket(0x41, 2, 0x0002, 0, 0);
                         if (device.ControlTransfer(ref setupPacket, buffer, 0, out int lengthTransferred) == false)
                             return false;
@@ -96,6 +103,7 @@ public class TeledongManager
                         this.device = device;
 
                         State = TeledongState.Ok;
+                        BadCalibrationWarning = true;
 
                         //filter = new KalmanFilter1D(initialMean: 0, initialStdDev: 0.5, measurement_sigma: 0.2, motion_sigma: 0.1);
 
@@ -107,14 +115,15 @@ public class TeledongManager
         catch (DllNotFoundException ex)
         {
             throw new DllNotFoundException("Could not find the libusb-1.0 binaries. You need to manually include the file when distributing your program, depending on the platform.\n" +
-                "Libusb can be downloaded here: https://sourceforge.net/projects/libusb/files/libusb-1.0/libusb-1.0.22/\n" +
-                "For example, for Windows x64, add the file libusb-1.0.dll to your build folder, found in the folder MS64\\dll in the archive libusb-1.0.22.7z downloaded from the link above.", ex);
+                "Libusb can be downloaded here: https://sourceforge.net/projects/libusb/files/libusb-1.0/libusb-1.0.26/\n" +
+                "For example, for Windows x64, add the file libusb-1.0.dll to your build folder, found in the folder VS2015-x64\\dll in the archive libusb-1.0.26-binaries.7z downloaded from the link above.", ex);
         }
         return false;
     }
 
     /// <summary>
     /// Gets the current position of the sensor array, normalized based on the current calibration.
+    /// Should be called at a regular interval, around every ~50ms, in order for all features such as KeepPositionAtRelease to work properly.
     /// </summary>
     /// <returns>Position, from 1.0 = Nothing on the dildo, to 0.0 = Dildo fully inserted.</returns>
     /// <exception cref="Exception"></exception>
@@ -177,7 +186,29 @@ public class TeledongManager
 
         //Debug.WriteLine($"first estimate: {firstEstimate.ToString("N2")},\t\tmotion: {motion.ToString("N2")},\t\ttime diff: {(timeOfLastPositions[0] - timeOfLastPositions[1]).TotalMilliseconds.ToString("N0")},\t\t pos diff: {(lastPositions[0] - lastPositions[1]).ToString("N2")},\t\t result: {finalEstimate.ToString("N2")},\t\t uncertainty: {filter.BeliefDistribution.StdDev.ToString("N2")}");
 
-        return 1.0 - firstEstimate; // Inverting position to make compatible with other conventions like Buttplug.io
+        var position = 1.0 - firstEstimate; // Inverting position to make compatible with other conventions like Buttplug.io
+
+        if (KeepPositionAtRelease)
+        {
+            var estimatedCurrentPosition = previousPositions[1] + (previousPositions[0] - previousPositions[2]);
+
+            if (position > 0.95 && estimatedCurrentPosition < 0.9)
+            {
+                position = (previousPositions[1] + previousPositions[2]) / 2;
+            }
+            else
+            {
+                for (int i = numPreviousPositions-1; i > 0; i--)
+                {
+                    previousPositions[i] = previousPositions[i - 1];
+                }
+                previousPositions[0] = position;
+
+                position = (previousPositions[0] + previousPositions[1]) / 2;
+            }
+        }
+
+        return position;
     }
 
     /// <summary>
@@ -185,11 +216,12 @@ public class TeledongManager
     /// This mode can be used in bright environments, when the optical sensors can not detect reflections well because they get saturated by the ambient light.
     /// NB: Typically you do not want to set this manually, insted run a calibration routine which automatically detects whether or not to use sunlight mode.
     /// </summary>
-    /// <param name="enableSunlightMode"></param>
+    /// <param name="enableSunlightMode">Sunlight mode</param>
+    /// <param name="useMutex">Whether to block other Teledong USB transfers while the sensor readout happens. Default true.</param>
     /// /// <exception cref="Exception"></exception>
     public void SetSunlightMode(bool enableSunlightMode, bool useMutex=true)
     {
-        //SendNonQueryCommand(TeledongCommands.SetSunlightMode, new byte[] { (byte)(enableSunlightMode ? 1 : 0) }, useMutex);
+        SendNonQueryCommand(TeledongCommands.SetSunlightMode, new byte[] { (byte)(enableSunlightMode ? 1 : 0) }, useMutex);
         sunlightMode = enableSunlightMode;
     }
 
@@ -197,8 +229,8 @@ public class TeledongManager
     /// Gets all raw sensor values from the device.
     /// Meant for advanced tasks like calibration/debugging. Normally you would simply use GetPosition() instead.
     /// </summary>
-    /// <param name="normalizeToCalibration">Whether to normalize the values to between 1.0 and 0.0 based on calibration, or return raw 0-255 values.</param>
-    /// <param name="useMutex">Whether to block other Teledong USB transfers while transaction happens. Default true.</param>
+    /// <param name="normalizeToCalibration">Whether to normalize the values to between 1.0 and 0.0 based on calibration instead of raw 0-255 values. Default true.</param>
+    /// <param name="useMutex">Whether to block other Teledong USB transfers while the sensor readout happens. Default true.</param>
     /// <returns>Enumerator of available sensor values.</returns>
     /// <exception cref="Exception"></exception>
     public IEnumerable<double> GetRawSensorValues(bool normalizeToCalibration = true, bool useMutex = true)
@@ -229,12 +261,35 @@ public class TeledongManager
                     if (State != TeledongState.Calibrating)
                         State = TeledongState.Ok;
 
+                    bool calibrationOkFlag = true;
+
                     int i = 0;
                     foreach (var value in ParseSensorValuePacket(readData, readTransferLength))
                     {
-                        yield return normalizeToCalibration ? (double)Math.Clamp((value - calibrationLowValues[i]) / (float)(calibrationHighValues[i] - calibrationLowValues[i]), 0.0, 1.0) : value;
+                        if (normalizeToCalibration)
+                        {
+                            var calibratedValue = (value - calibrationLowValues[i]) / (float)(calibrationHighValues[i] - calibrationLowValues[i]);
+
+                            if (calibratedValue < -0.3 || calibratedValue > 1.3)
+                                calibrationOkFlag = false;
+
+                            yield return (double)Math.Clamp(calibratedValue, 0.0, 1.0);
+                        }
+                        else
+                        {
+                            yield return value;
+                        }
                         i++;
                     }
+
+                    if (!calibrationOkFlag)
+                    {
+                        badCalibrationCounter = Math.Min(++badCalibrationCounter, int.MaxValue);
+                        if (badCalibrationCounter > badCalibrationThreshold)
+                            BadCalibrationWarning = true;
+                    }
+                    else
+                        badCalibrationCounter = Math.Max(--badCalibrationCounter, 0);
                 }
                 else
                 {
@@ -333,11 +388,11 @@ public class TeledongManager
     }
 
     /// <summary>
-    /// Sends a raw command to the device, when the response can be discarded. 
+    /// Sends a raw command to the device, discarding the response. 
     /// Used internally, not normally needed for end users except for advanced use cases such as firmware updating.
     /// </summary>
     /// <param name="command">Command ID</param>
-    /// <param name="extraData">Command parameter content</param>
+    /// <param name="extraData">Command parameter content. Only required for certain commands.</param>
     /// <param name="useMutex">Whether to block other Teledong USB transfers while transaction happens. Default true.</param>
     /// <exception cref="Exception"></exception>
     public void SendNonQueryCommand(TeledongCommands command, byte[]? extraData = null, bool useMutex = true)
@@ -387,7 +442,7 @@ public class TeledongManager
     }
 
     /// <summary>
-    /// Retreives stored calibration values from the connected Teledong. You should either call this, or start a new calibration with CalibrateAsync(), before reading the position.
+    /// Retreives stored calibration values from the connected Teledong. You should once either call this, or start a new calibration with CalibrateAsync(), before starting to read position data.
     /// </summary>
     /// <exception cref="Exception"></exception>
     public void LoadCalibration()
@@ -401,7 +456,7 @@ public class TeledongManager
         if (!usbMutex.WaitOne(TimeSpan.FromMilliseconds(300)))
             throw new Exception("USB Device is busy.");
 
-        bool newDaylightMode = SunlightMode;
+        bool newDaylightMode = IsSunlightMode;
 
         try
         {
@@ -446,6 +501,7 @@ public class TeledongManager
             usbMutex.ReleaseMutex();
         }
 
+        BadCalibrationWarning = false;
         SetSunlightMode(newDaylightMode);
     }
 
@@ -567,7 +623,6 @@ public class TeledongManager
                 }
 
 
-
                 // Apply calibration
 
                 calibrationLowValues.Clear();
@@ -583,13 +638,13 @@ public class TeledongManager
 
                 if (sumSignalStrengthSunlight > sumSignalStrengthIndoors)
                 {
-                    SetSunlightMode(true, false);
+                    SetSunlightMode(true, useMutex: false);
                     calibrationLowValues.AddRange(lowValuesSunlight);
                     calibrationHighValues.AddRange(highValuesSunlight);
                 }
                 else
                 {
-                    SetSunlightMode(false, false);
+                    SetSunlightMode(false, useMutex: false);
                     calibrationLowValues.AddRange(lowValuesIndoor);
                     calibrationHighValues.AddRange(highValuesIndoor);
                 }
@@ -604,7 +659,7 @@ public class TeledongManager
                 {
                     Thread.Sleep(20);
 
-                    List<byte> commandPayload = new() { (byte)numSensors, (byte)(SunlightMode ? 1 : 0) };
+                    List<byte> commandPayload = new() { (byte)numSensors, (byte)(IsSunlightMode ? 1 : 0) };
                     for (int i = 0; i < numSensors; i++)
                     {
                         commandPayload.Add(calibrationLowValues[i]);
@@ -622,6 +677,7 @@ public class TeledongManager
                 try
                 {
                     usbMutex.ReleaseMutex();
+                    BadCalibrationWarning = false;
                     State = TeledongState.Ok;
                 }
                 catch { }
@@ -677,5 +733,6 @@ public enum TeledongCommands : byte
     SaveUserData = 0x05,
     ReadUserData = 0x06,
     SetSunlightMode = 0x07,
+    GetSunlightMode = 0x08,
     EnterBootloader = 0xFE,
 }

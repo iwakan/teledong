@@ -8,12 +8,16 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
+using Tmds.DBus.Protocol;
 
 namespace TeledongCommander;
 
 public class ButtplugApi : OutputDevice
 {
-    public override bool IsConnected => client.Devices.Count() > 0 && client.Connected;
+    public int SelectedDeviceIndex { get; set; } = 0;
+    public bool IsScanning { get; private set; } = false;
+    public IEnumerable<ButtplugClientDevice> DeviceNames => client.Devices;
+    public override bool IsStarted => client.Devices.Count() > 0 && client.Connected;
 
     public override string StatusText { 
         get 
@@ -33,49 +37,57 @@ public class ButtplugApi : OutputDevice
 
     ButtplugClient client;
 
-    public ButtplugApi()
+    public ButtplugApi() : base()
     {
-        Processor = new("buttplugApi");
         Processor.Output += Processor_Output;
         client = new ButtplugClient("MyClient");
     }
 
     private async void Processor_Output(object? sender, OutputEventArgs e)
     {
-        var sendCmdTask = client.Devices.FirstOrDefault()?.SendLinearCmd((uint)e.Duration.TotalMilliseconds, e.Position);
-        if (sendCmdTask != null)
-            await sendCmdTask;
+        if (SelectedDeviceIndex >= 0 &&  SelectedDeviceIndex < client.Devices.Count())
+
+        if (client.Devices[SelectedDeviceIndex] is ButtplugClientDevice clientDevice)
+            await clientDevice.SendLinearCmd((uint)e.Duration.TotalMilliseconds, e.Position);
+
         Debug.WriteLine("Sent pos: " + e.Position.ToString("N2") + " , " + e.Duration.TotalMilliseconds);
     }
 
-    public override async Task Connect()
+    public override async Task Start()
     {
-        await Disconnect();
+        await Stop();
 
-        var connector = new ButtplugEmbeddedConnectorOptions() { ServerName = "MyServer" };
-        client.ConnectAsync(connector).Wait();
-        client.StartScanningAsync().Wait();
-        Thread.Sleep(2000);
-        client.StopScanningAsync().Wait();
+        IsScanning = true;
+        TriggerStatusChanged();
+
+        if (!client.Connected)
+        {
+            var connector = new ButtplugEmbeddedConnectorOptions() { ServerName = "MyServer" };
+            await client.ConnectAsync(connector);
+        }
+        await client.StartScanningAsync();
+        await Task.Delay(2000);
+        await client.StopScanningAsync();
 
         Debug.WriteLine("Buttplug.io client currently knows about these devices:");
         foreach (var device in client.Devices)
         {
             Debug.WriteLine($"- {device.Name}");
         }
+        IsScanning = false;
+        TriggerStatusChanged();
     }
 
-    public async Task Stop()
-    {
-        await client.StopAllDevicesAsync();
-    }
-
-    public override async Task Disconnect()
+    public override async Task Stop()
     {
         try
         {
-            await Stop();
-            await client.DisconnectAsync();
+            if (IsStarted)
+            {
+                await client.StopAllDevicesAsync();
+                await client.DisconnectAsync();
+                TriggerStatusChanged();
+            }
         }
         catch
         { }

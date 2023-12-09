@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -11,20 +12,22 @@ namespace TeledongCommander
     // Class that takes raw points as input, and does stuff like add delay, reduce number of points, etc, before outputting (via events)
     public class OutputProcessor
     {
-        public double FilterEpsilon { get; set; } = 0.05;
-        public TimeSpan FilterTime { get; set; } = TimeSpan.FromMilliseconds(300);
+        public double FilterStrength { get; set; } = 0.00;
+        public TimeSpan FilterTime { get; set; } = TimeSpan.FromMilliseconds(0);
+        public bool PeakMotionMode { get; set; } = true;
 
-        readonly string settingsId;
         readonly List<StrokerPoint> inputPointBuffer = new List<StrokerPoint>();
         readonly Queue<StrokerPoint> outputPointBuffer = new Queue<StrokerPoint>();
         readonly DateTime referenceTime = DateTime.Now;
         DateTime lastWriteTime = DateTime.Now;
+        DateTime lastWriteTimePeak = DateTime.Now;
+        double previousPosition = 0.9;
+        StrokeDirection currentDirection = StrokeDirection.None;
 
         public event EventHandler<OutputEventArgs>? Output;
 
-        public OutputProcessor(string settingsId) 
+        public OutputProcessor() 
         {
-            this.settingsId = settingsId;
         }
 
         // This will send the current position (from 0 to 1) to processing, and trigger the Output event if a new position is ready to be sent to the device.
@@ -33,23 +36,93 @@ namespace TeledongCommander
         {
             var now = DateTime.Now - referenceTime;
 
-            inputPointBuffer.Add(new StrokerPoint(position, now));
-
-            // Filter and queue
-            if ((now - inputPointBuffer.First().Time) > FilterTime)
+            if (!PeakMotionMode)
             {
-                List<StrokerPoint> processedPointBuffer = RamerDouglasPeuckerNetV2.RamerDouglasPeucker.Reduce(inputPointBuffer.ToList(), FilterEpsilon);
-                Debug.WriteLine($"Reduced from {inputPointBuffer.Count} points to {processedPointBuffer.Count} points.");
-
-                foreach (var point in processedPointBuffer.Skip(1))
+                if (FilterTime == TimeSpan.Zero || FilterStrength == 0)
                 {
-                    outputPointBuffer.Enqueue(point);
+                    // Raw unfiltered stream of points. 
+                    outputPointBuffer.Enqueue(new StrokerPoint(position, now));
+                }
+                else
+                {
+                    // Filter and queue chunks of input
+                    inputPointBuffer.Add(new StrokerPoint(position, now));
+
+                    if ((now - inputPointBuffer.First().Time) > FilterTime)
+                    {
+                        List<StrokerPoint> processedPointBuffer = RamerDouglasPeuckerNetV2.RamerDouglasPeucker.Reduce(inputPointBuffer.ToList(), FilterStrength);
+                        Debug.WriteLine($"Reduced from {inputPointBuffer.Count} points to {processedPointBuffer.Count} points.");
+
+                        foreach (var point in processedPointBuffer.Skip(1))
+                        {
+                            outputPointBuffer.Enqueue(point);
+                        }
+
+                        inputPointBuffer.Clear();
+                    }
+                }
+            }
+            else
+            {
+                // Peak motion write mode. Only writes a position after the motion on the Teledong has stopped/reversed.
+                // Should mean that positions are usually only written twice per stroke, at the max/min amplitude peaks. 
+                // This mode can be used if the device API favors more rare updates due to latency etc, such as The Handy http API.
+
+                bool shouldSendPosition = false;
+                var positionDelta = position - previousPosition;
+
+                if (currentDirection == StrokeDirection.Up)
+                {
+                    if (position <= previousPosition || DateTime.Now - lastWriteTimePeak > TimeSpan.FromSeconds(0.8))
+                    {
+                        Debug.WriteLine("Strokedir.: Up");
+
+                        shouldSendPosition = true;
+
+                        if (position <= previousPosition)
+                            currentDirection = StrokeDirection.None;
+                    }
+                }
+                else if (currentDirection == StrokeDirection.Down)
+                {
+                    if (position >= previousPosition || DateTime.Now - lastWriteTimePeak > TimeSpan.FromSeconds(0.8))
+                    {
+                        Debug.WriteLine("Strokedir.: Down");
+
+                        shouldSendPosition = true;
+
+                        if (position >= previousPosition)
+                            currentDirection = StrokeDirection.None;
+                    }
                 }
 
-                inputPointBuffer.Clear();
+                if (shouldSendPosition)
+                {
+                    if (DateTime.Now - lastWriteTimePeak < TimeSpan.FromMilliseconds(100) && positionDelta < 0.1)
+                    {
+                        lastWriteTimePeak = DateTime.Now;
+                        shouldSendPosition = false; // Debouncing
+                    }
+                }
+
+                if (Math.Abs(positionDelta) > 0.05)
+                {
+                    currentDirection = positionDelta > 0 ? StrokeDirection.Up : StrokeDirection.Down;
+                    previousPosition = position;
+                }
+
+                if (currentDirection != StrokeDirection.None)
+                    previousPosition = position;
+
+                if (shouldSendPosition)
+                {
+                    lastWriteTimePeak = DateTime.Now;
+                    outputPointBuffer.Enqueue(new StrokerPoint(previousPosition, now));
+                }
             }
 
-            // Output
+
+            // Process queue and output
             try
             {
                 TimeSpan outputTimeThreshold = DateTime.Now - referenceTime - FilterTime;
@@ -71,19 +144,19 @@ namespace TeledongCommander
 
                 if (shouldOutput)
                 {
-                    TimeSpan writeDuration = DateTime.Now - lastWriteTime - TimeSpan.FromMilliseconds(3);
+                    TimeSpan writeDuration = DateTime.Now - lastWriteTime - TimeSpan.FromMilliseconds(10);
+                    if (writeDuration > TimeSpan.FromMilliseconds(1000))
+                        writeDuration = TimeSpan.FromMilliseconds(500);
                     lastWriteTime = DateTime.Now;
 
-                    if (writeDuration.TotalSeconds < 2)
-                    {
-                        Output?.Invoke(this, new OutputEventArgs(Math.Clamp(nextPoint.Position, 0, 1), writeDuration));
-                    }
+                    Output?.Invoke(this, new OutputEventArgs(Math.Clamp(nextPoint.Position, 0, 1), writeDuration));
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("Failed to output value: " + ex.Message);
             }
+            
         }
     }
 
@@ -97,5 +170,13 @@ namespace TeledongCommander
             this.Position = position;
             this.Duration = duration;
         }
+    }
+
+
+    public enum StrokeDirection
+    {
+        None,
+        Up,
+        Down,
     }
 }

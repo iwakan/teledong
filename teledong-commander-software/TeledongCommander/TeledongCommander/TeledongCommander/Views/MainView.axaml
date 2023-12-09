@@ -3,7 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:TeledongCommander.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="700"
+             mc:Ignorable="d" d:DesignWidth="810" d:DesignHeight="700"
              x:Class="TeledongCommander.Views.MainView"
 			 xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
 			 xmlns:ss="using:LiveChartsCore.SkiaSharpView"
@@ -21,7 +21,7 @@
 		<vm:MainViewModel />
 	</Design.DataContext>
 
-	<Grid Background="{StaticResource PrimaryBackground}">
+	<Grid Background="{StaticResource PrimaryBackground}" MinWidth="700" MinHeight="600">
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition Width="6*"></ColumnDefinition>
 			<ColumnDefinition></ColumnDefinition>
@@ -33,7 +33,7 @@
 			<Grid>
 				<Grid.RowDefinitions>
 					<RowDefinition></RowDefinition>
-					<RowDefinition Height="5*"></RowDefinition>
+					<RowDefinition Height="2*"></RowDefinition>
 					<RowDefinition Height="6*"></RowDefinition>
 				</Grid.RowDefinitions>
 				
@@ -59,12 +59,14 @@
 					
 					<lvc:CartesianChart x:Name="inputPositionChart" TooltipPosition="Hidden" BorderBrush="{StaticResource PrimaryBackground}" BorderThickness="1" Height="70" Series="{Binding InputPositionSeries}" XAxes="{Binding PositionChartXAxes}" AnimationsSpeed="0" ZoomMode="None">
 					</lvc:CartesianChart>
-					
-					<ToggleSwitch Margin="0,20,0,0" Content="Sensor mode" IsChecked="{Binding TeledongSunlightMode}" OnContent="Sunlight" OffContent="Indoor lighting" IsVisible="{Binding InputDeviceIsTeledong}"></ToggleSwitch>
-					<StackPanel Orientation="Horizontal" IsVisible="{Binding InputDeviceIsTeledong}" Margin="0,10,0,0" >
+
+					<!--<ToggleSwitch Margin="0,20,0,0" Content="Sensor mode" IsChecked="{Binding TeledongSunlightMode}" OnContent="Sunlight" OffContent="Indoor lighting" IsVisible="{Binding InputDeviceIsTeledong}"></ToggleSwitch>-->
+					<StackPanel Orientation="Horizontal" IsVisible="{Binding InputDeviceIsTeledong}" Margin="0,10,0,0" Spacing="20">
 						<Button Command="{Binding CalibrateTeledongCommand}" Content="Calibrate"></Button>
-						<TextBlock Text=""></TextBlock>
+						<TextBlock Text="⚠️ Bad sensor values detected, Teledong should be recalibrated." IsVisible="{Binding TeledongHasBadCalibration}" VerticalAlignment="Center" TextWrapping="Wrap" Width="190"></TextBlock>
 					</StackPanel>
+					
+					<CheckBox Content="Keep current position on release" IsChecked="{Binding TeledongKeepPositionOnRelease}" IsVisible="{Binding InputDeviceIsTeledong}" ToolTip.Tip="When you let go of the Teledong mid-stroke, this option decides whether to hold the current position, or reset to the top position. NB: If this is enabled, it introduces a minor extra latency (50-100ms)."/>
 					
 					
 					
@@ -77,94 +79,56 @@
 
 		<!-- OUTPUT AREA -->
 		<Border Background="{StaticResource SecondaryBackground}" BorderThickness="0" Margin="20" Padding="20" CornerRadius="30" Grid.Column="2">
-			<Grid>
-				<Grid.RowDefinitions>
-					<RowDefinition></RowDefinition>
-					<RowDefinition Height="5*"></RowDefinition>
-					<RowDefinition Height="6*"></RowDefinition>
-				</Grid.RowDefinitions>
+			<StackPanel Spacing="10">
 
-				<TextBlock Text="Output devices" HorizontalAlignment="Center"></TextBlock>
-
-				<Border Margin="0,40,0,0" Height="200" VerticalAlignment="Top" BorderBrush="Gray" BorderThickness="1" Background="#30000000">
-					<ItemsControl ItemsSource="{Binding OutputDeviceListItems}">
-					</ItemsControl>
-				</Border>
+				<TextBlock Text="Output devices" HorizontalAlignment="Center" Margin="0,0,0,15"></TextBlock>
 				
+				<DockPanel>
+					<ComboBox ItemsSource="{Binding OutputDeviceTypes}" Grid.Row="1" MinWidth="200" SelectedIndex="{Binding SelectedOutputDeviceToAdd}" HorizontalAlignment="Left"></ComboBox>
+					<Button Command="{Binding AddOutputDeviceCommand}" Content="＋  Add" Grid.Row="1" MinWidth="70" MinHeight="30" IsVisible="True" HorizontalAlignment="Right"></Button>
+				</DockPanel>
 				
+				<Grid>
+					<Border Grid.Row="1" MinHeight="220" BorderBrush="Gray" BorderThickness="1" Background="#30000000">
+						<ScrollViewer>
+							<ListBox ItemsSource="{Binding OutputDeviceListItems}" SelectionMode="Single" SelectedIndex="{Binding SelectedOutputDeviceIndex}"/>
+						</ScrollViewer>
+					</Border>
+					<TextBlock IsVisible="{Binding !HasOutputDevices}" Text="No output devices. Please add one." VerticalAlignment="Center" HorizontalAlignment="Center"/>
+				</Grid>
+
+				<!--<Separator Grid.Row="2" VerticalAlignment="Top" Margin="0,12,0,0"></Separator>-->
 				
-				<!--<Separator VerticalAlignment="Bottom" Margin="0,0,0,5"/>
+				<ContentControl Content="{Binding OutputDeviceSettingsView}" MinHeight="200" IsVisible="{Binding !AdvancedOutputSettingsAreOpen}" Grid.Row="2" VerticalAlignment="Top" />
+				<ContentControl Content="{Binding AdvancedOutputSettingsView}" MinHeight="200" IsVisible="{Binding AdvancedOutputSettingsAreOpen}" Grid.Row="2" VerticalAlignment="Top" />
+				
+				<Button Command="{Binding ToggleAdvancedOutputSettingsCommand}" Content="Toggle Advanced Settings" Grid.Row="2" MinWidth="70" MinHeight="30" IsVisible="True" VerticalAlignment="Bottom" HorizontalAlignment="Center"></Button>
 
-				<StackPanel Grid.Row="1">-->
-					<!--Make sure the command parameter IDs match the enum values. Too bothersome to pass enums directly in xaml-->
-				<!--<DockPanel>
-						<RadioButton ToolTip.Tip="Sends the position to The Handy over the internet using a connection key." Command="{Binding SetOutputDeviceCommand}" CommandParameter="1" GroupName="OutputDevice" IsChecked="True" Content="The Handy key: "></RadioButton>
-						<TextBox Text="{Binding TheHandyConnectionKey}" Margin="10,0,10,0"></TextBox>
-					</DockPanel>
-					<RadioButton ToolTip.Tip="Sends the position to a built-in Buttplug.io server, which supports numerous strokers on the local network and bluetooth." Command="{Binding SetOutputDeviceCommand}" CommandParameter="2" GroupName="OutputDevice" IsChecked="False" Content="Built-in server"></RadioButton>
-					<RadioButton ToolTip.Tip="Sends the position to a third-party Intiface server, which supports numerous strokers on the local network and bluetooth." Command="{Binding SetOutputDeviceCommand}" CommandParameter="3" GroupName="OutputDevice" IsChecked="False" Content="Intiface server"></RadioButton>
-					<RadioButton ToolTip.Tip="Records the position to a funscript. Can be used to pre-record videos with a perfectly matching script out of the box." Command="{Binding SetOutputDeviceCommand}" CommandParameter="4" GroupName="OutputDevice" IsChecked="False" Content="Script recorder"></RadioButton>
-				</StackPanel>
+				
+				<!--
 
-				<Button Content="Connect" Command="{Binding ConnectOutputDeviceCommand}" IsEnabled="{Binding CanClickConnectOutputDeviceButton}" Margin="0,0,0,20" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom"></Button>
-
-				<Separator Grid.Row="1" VerticalAlignment="Bottom" Margin="0,0,0,5"/>
-
-				<StackPanel Grid.Row="2" Spacing="10" Margin="5,10,5,10">
-					
-					<DockPanel>
-						<TextBlock Text="Status: " ></TextBlock> 
-						<TextBlock Text="{Binding OutputDeviceStatusText}"></TextBlock> 
-					</DockPanel>
-					
 					<lvc:CartesianChart x:Name="outputPositionChart" TooltipPosition="Hidden" BorderBrush="{StaticResource PrimaryBackground}" BorderThickness="1" Height="70" Series="{Binding OutputPositionSeries}" XAxes="{Binding PositionChartXAxes}" AnimationsSpeed="0" ZoomMode="None">
-					</lvc:CartesianChart>--><!--
-
-					--><!--<ToggleSwitch Margin="0,20,0,0" Content="Motion mode" OffContent="Continuous" OnContent="Peak" IsChecked="{Binding PeakMotionMode}" ToolTip.Tip="In 'Peak' motion mode, the position is written only as the direction of motion changes. This results in more jagged motion, but should work better if the connection to the device has limited bandwidth or high latency, such as connections over the internet. For local connections, 'continuous' mode is preferred as the motion is smoother and more accurate."></ToggleSwitch>--><!--
-
-				--><!--<Button Content="Stop and save recording" Command="{Binding StopAndSaveFunscriptRecordingCommand}" IsVisible="{Binding OutputDeviceIsFunscript}"/>
-					
-					<DockPanel IsVisible="{Binding OutputDeviceIsFunscript}">
-						<Button x:Name="test" Content="Set file:" Click="ChangeFunscriptPathButton_Clicked"/>
-						<TextBlock Margin="5,0,0,0" VerticalAlignment="Center" Text="{Binding FunscriptOutputPathAbbreviated}"></TextBlock>
-					</DockPanel>
-
-				</StackPanel>-->
+					</lvc:CartesianChart>
+				-->
 				
-			</Grid>
+			</StackPanel>
 		</Border>
 
-		<!-- ADVANCED SETTINGS BOX -->
-		<Button Content="☰" Command="{Binding ToggleAdvancedSettingsCommand}" Grid.Column="1" FontSize="24" VerticalAlignment="Bottom" Margin="0,0,0,25" HorizontalAlignment="Center"></Button>
+		<!-- ABOUT BOX -->
+		<Button Content="☰" Command="{Binding ToggleInfoWindowCommand}" Grid.Column="1" FontSize="24" VerticalAlignment="Bottom" Margin="0,0,0,25" HorizontalAlignment="Center"></Button>
 
-		<Border IsVisible="{Binding AdvancedSettingsAreOpen}" Padding="20" BorderBrush="Black" BorderThickness="2" Background="{StaticResource PrimaryBackground}" CornerRadius="15" Grid.ColumnSpan="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+		<Border IsVisible="{Binding InfoWindowIsOpen}" Padding="20" BorderBrush="Black" BorderThickness="2" Background="{StaticResource PrimaryBackground}" CornerRadius="15" Grid.ColumnSpan="3" HorizontalAlignment="Center" VerticalAlignment="Center">
 			<StackPanel MinWidth="400" MinHeight="400" Spacing="10">
 
-				<TextBlock Text="Teledong Commander software v0.1.0 - Teledong.com"></TextBlock>
-				
-				<TextBlock Text="Advanced Settings" FontWeight="SemiBold" Margin="0,10,0,10"/>
-				<StackPanel>
-					
-					<TextBlock Text="{Binding ReadInterval, StringFormat='Read interval: {0:0} ms'}" />
-					<Slider Value="{Binding ReadInterval}" Minimum="5" Maximum="150"/>
-					<!--<TextBlock Text="{Binding WriteInterval, StringFormat='Write interval: {0:0} ms'}" />
-					<Slider Value="{Binding WriteInterval}" Minimum="10" Maximum="300"/>
-					<TextBlock Text="{Binding WriteCommandDuration, StringFormat='Write command duration: {0:0} ms'}"/>
-					<Slider Value="{Binding WriteCommandDuration}" Minimum="10" Maximum="500"/>-->
-					<TextBlock Text="{Binding FilterEpsilon, StringFormat='Filtering strength: {0:0.00}'}"  ToolTip.Tip="This is strength of the filter that tries to reduce the amount of commands in the output. Smaller values will result in smoother movement in theory, but can cause jitter/stuttering on strokers. Default: 0.05"/>
-					<Slider Value="{Binding FilterEpsilon}" Minimum="0" Maximum="1" ToolTip.Tip="This is strength of the filter that tries to reduce the amount of commands in the output. Smaller values will result in smoother movement in theory, but can cause jitter/stuttering on strokers. Default: 0.05"/>
-					<TextBlock Text="{Binding FilterTimeMilliseconds, StringFormat='Filter period (latency): {0:0} ms'}" ToolTip.Tip="This is the duration of data that is buffered and filtered before being send to the output device. Smaller values will result in less latency, but can cause jitter/stuttering on strokers. Default: 300ms" />
-					<Slider Value="{Binding FilterTimeMilliseconds}" Minimum="0" Maximum="5000"  ToolTip.Tip="This is the duration of data that is buffered and filtered before being send to the output device. Shorter values will result in less latency, but can cause jitter/stuttering on strokers. Default: 300ms"/>
-					
-					<StackPanel Orientation="Horizontal">
-						<Button Margin="5" Content="Enter Teledong Bootloader" Command="{Binding TeledongBootToBootloaderCommand}" IsEnabled="{Binding InputDeviceIsTeledong}"></Button>
-						<TextBlock Margin="5" VerticalAlignment="Center" Text="{Binding TeledongFirmwareVersion, StringFormat='Firmware version: {0}'}"></TextBlock>
-					</StackPanel>
-					
-				</StackPanel>
+				<TextBlock Text="Teledong Commander software v0.2.0 - Teledong.com"></TextBlock>
 				
 				<TextBlock Text="Raw sensor values" FontWeight="SemiBold" Margin="0,0,0,10"/>
 				<TextBlock Text="{Binding SensorValuesDebugString}"></TextBlock>
+
+				<StackPanel Orientation="Horizontal">
+					<Button Margin="5" Content="Enter Teledong Bootloader" Command="{Binding TeledongBootToBootloaderCommand}" IsEnabled="{Binding InputDeviceIsTeledong}"></Button>
+					<TextBlock Margin="5" VerticalAlignment="Center" Text="{Binding TeledongFirmwareVersion, StringFormat='Firmware version: v{0}'}" IsEnabled="{Binding InputDeviceIsTeledong}" />
+				</StackPanel>
 				
 			</StackPanel>	
 		</Border>

@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:TeledongCommander.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="250" 
+			 x:DataType="vm:OutputDeviceViewModel"
+             x:Class="TeledongCommander.AdvancedOutputSettingsView">
+
+	<!-- This only sets the DataContext for the previewer in an IDE, to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+	<!--<Design.DataContext>
+		<vm:OutputDeviceViewModel />
+	</Design.DataContext>-->
+	
+	<Grid Margin="20,15,20,5">
+		<TextBlock Text="Advanced Settings" FontWeight="SemiBold"/>
+		<StackPanel Spacing="3" Margin="0,25,0,0">
+			
+			<ToggleSwitch Margin="0,20,0,0" Content="Motion mode" OffContent="Continuous" OnContent="Peak" IsChecked="{Binding PeakMotionMode}" ToolTip.Tip="In 'Peak' motion mode, the position is written only as the direction of motion changes. This results in more jagged motion, but should work better if the connection to the device has limited bandwidth or high latency, such as connections over the internet. For local connections, 'continuous' mode is preferred as the motion is smoother and more accurate."></ToggleSwitch>
+			<!--<TextBlock Text="{Binding ReadInterval, StringFormat='Read interval: {0:0} ms'}" />
+			<Slider Value="{Binding ReadInterval}" Minimum="5" Maximum="150"/>-->
+			<!--<TextBlock Text="{Binding WriteInterval, StringFormat='Write interval: {0:0} ms'}" Height="25" Margin="0,0,0,-15"/>
+			
+			<Slider Value="{Binding WriteInterval}" Minimum="10" Maximum="300" Height="35" />
+			
+			<TextBlock Text="{Binding WriteCommandDuration, StringFormat='Write command duration: {0:0} ms'}" Height="25" Margin="0,0,0,-15"/>
+			<Slider Value="{Binding WriteCommandDuration}" Minimum="10" Maximum="500" Height="35" />
+			-->
+			<TextBlock Text="{Binding FilterTimeMilliseconds, StringFormat='Latency (filter time): {0:0} ms'}" ToolTip.Tip="This is the duration of data that is buffered and filtered before being send to the output device. Smaller values will result in less latency, but can cause jitter/stuttering on strokers. Default: 0ms" Height="25" Margin="0,0,0,-15"/>
+			<Slider Value="{Binding FilterTimeMilliseconds}" Minimum="0" Maximum="15000" LargeChange="1000" SmallChange="100" ToolTip.Tip="This is the duration of data that is buffered and filtered before being send to the output device. Shorter values will result in less latency, but can cause jitter/stuttering on strokers. Default: 0ms" Height="35" />
+
+			<TextBlock Text="{Binding FilterStrength, StringFormat='Filtering strength: {0:0.00}'}" IsVisible="{Binding !PeakMotionMode}" ToolTip.Tip="This is strength of the filter that tries to reduce the amount of commands in the output. Smaller values will result in smoother movement in theory, but can cause jitter/stuttering on strokers. Default: 0" Height="25" Margin="0,0,0,-15"/>
+			<Slider Value="{Binding FilterStrength}" Minimum="0" Maximum="0.3" IsVisible="{Binding !PeakMotionMode}" ToolTip.Tip="This is strength of the filter that tries to reduce the amount of commands in the output. Smaller values will result in smoother movement in theory, but can cause jitter/stuttering on strokers. Default: 0" Height="35" />
+
+
+		</StackPanel>
+	</Grid>
+</UserControl>

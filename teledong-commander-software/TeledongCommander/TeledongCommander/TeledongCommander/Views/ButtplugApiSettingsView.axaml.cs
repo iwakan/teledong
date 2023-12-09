@@ -4,9 +4,9 @@ using Avalonia.Markup.Xaml;
 
 namespace TeledongCommander;
 
-public partial class OutputDeviceListItem : UserControl
+public partial class ButtplugApiSettingsView : UserControl
 {
-    public OutputDeviceListItem()
+    public ButtplugApiSettingsView()
     {
         InitializeComponent();
     }

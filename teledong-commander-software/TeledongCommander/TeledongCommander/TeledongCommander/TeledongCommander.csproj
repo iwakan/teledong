@@ -26,8 +26,20 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Views\OutputDeviceListItem.axaml.cs">
-      <DependentUpon>OutputDeviceListItem.axaml</DependentUpon>
+    <Compile Update="Views\AdvancedOutputSettingsView.axaml.cs">
+      <DependentUpon>AdvancedOutputSettingsView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\FunscriptRecorderSettingsView.axaml.cs">
+      <DependentUpon>FunscriptRecorderSettingsView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\ButtplugApiSettingsView.axaml.cs">
+      <DependentUpon>ButtplugApiSettingsView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\HandyOnlineApiSettingsView.axaml.cs">
+      <DependentUpon>HandyOnlineApiSettingsView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\OutputDevicePreviewView.axaml.cs">
+      <DependentUpon>OutputDevicePreviewView.axaml</DependentUpon>
     </Compile>
   </ItemGroup>
 

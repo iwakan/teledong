@@ -12,7 +12,7 @@ namespace TeledongCommander;
 
 public class HandyOnlineApi : OutputDevice
 {
-    public override bool IsConnected => successfullyConnected;
+    public override bool IsStarted => successfullyConnected;
     public override bool HasError => !string.IsNullOrEmpty(errorMessage);
 
     public override string StatusText
@@ -26,7 +26,8 @@ public class HandyOnlineApi : OutputDevice
         }
     }
 
-    public string ConnectionKey { get; set; } = "";
+    private string connectionKey = "";
+    public string ConnectionKey { get { return connectionKey; } set { if (connectionKey != value) { connectionKey = value; TriggerStatusChanged(); } } }
 
     const string baseApiUrl = "https://www.handyfeeling.com/api/handy/v2/";
     string? errorMessage = null;
@@ -38,9 +39,8 @@ public class HandyOnlineApi : OutputDevice
     DateTime previousCommandTime = DateTime.Now;
     double previousPosition = 1.0;
 
-    public HandyOnlineApi()
+    public HandyOnlineApi() : base()
     {
-        Processor = new("handyOnlineApi");
         Processor.Output += Processor_Output;
         httpClient = new HttpClient();
         httpClient.Timeout = TimeSpan.FromSeconds(2);
@@ -48,6 +48,9 @@ public class HandyOnlineApi : OutputDevice
 
     private void Processor_Output(object? sender, OutputEventArgs e)
     {
+        if (!IsStarted)
+            return;
+
         var now = DateTime.Now;
 
         if (now - previousModeSetTime > TimeSpan.FromSeconds(5))
@@ -95,13 +98,17 @@ public class HandyOnlineApi : OutputDevice
             catch (Exception ex)
             {
                 Debug.WriteLine("Failed: " + ex.Message);
+                errorMessage = "Failed to send position";
+                TriggerStatusChanged();
+
             }
         }
     }
 
-    public override async Task Connect()
+    public override async Task Start()
     {
         await SetMode();
+        TriggerStatusChanged();
     }
 
     public async Task<int> GetMode()
@@ -124,7 +131,9 @@ public class HandyOnlineApi : OutputDevice
             return 0;
         }
         catch
-        { return 0; }
+        { 
+            return 0; 
+        }
         finally
         {
             criticalMessageLock.ReleaseMutex();
@@ -153,20 +162,26 @@ public class HandyOnlineApi : OutputDevice
                 var response = await httpClient.SendAsync(request);
 
                 if (response != null && response.IsSuccessStatusCode)
+                {
                     successfullyConnected = true;
+                }
             }
         }
-        catch
-        { }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to connect.";
+        }
         finally
         {
             criticalMessageLock.ReleaseMutex();
         }
     }
 
-    public override Task Disconnect()
+    public override Task Stop()
     {
+        successfullyConnected = false;
         httpClient.CancelPendingRequests();
+        TriggerStatusChanged();
         return Task.CompletedTask;
     }
 }
