@@ -15,7 +15,7 @@ namespace Teledong;
 /// Depends on Libusb. You need the LibUsbDotNet NuGet package as well as libusb binaries (such as libusb-1.0.dll for Windows which can be downloaded from https://libusb.info/). 
 /// See Teledong Commander software source for example usage.
 /// </summary>
-public class TeledongManager
+public class Teledong
 {
     /// <summary>
     /// Get the current status of any connected Teledong.
@@ -94,7 +94,7 @@ public class TeledongManager
                         }
 
                         byte[] buffer = new byte[128];
-                        var setupPacket = new UsbSetupPacket(0x41, 2, 0x0002, 0, 0);
+                        var setupPacket = new UsbSetupPacket((byte)UsbRequestType.TypeVendor, 2, 0x0002, 0, 0);
                         if (device.ControlTransfer(ref setupPacket, buffer, 0, out int lengthTransferred) == false)
                             return false;
 
@@ -447,14 +447,14 @@ public class TeledongManager
     /// <exception cref="Exception"></exception>
     public void LoadCalibration()
     {
-        calibrationLowValues.Clear();
-        calibrationHighValues.Clear();
-
         if (device == null)
             throw new Exception("Device is not connected.");
 
         if (!usbMutex.WaitOne(TimeSpan.FromMilliseconds(300)))
             throw new Exception("USB Device is busy.");
+
+        calibrationLowValues.Clear();
+        calibrationHighValues.Clear();
 
         bool newDaylightMode = IsSunlightMode;
 
@@ -709,7 +709,7 @@ public class TeledongManager
         }
     }
 
-    ~TeledongManager()
+    ~Teledong()
     {
         Disconnect();
     }

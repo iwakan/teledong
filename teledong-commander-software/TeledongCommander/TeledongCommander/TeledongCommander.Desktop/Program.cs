@@ -1,5 +1,4 @@
 ﻿using Avalonia;
-using Avalonia.ReactiveUI;
 using System;
 
 namespace TeledongCommander.Desktop
@@ -18,7 +17,6 @@ namespace TeledongCommander.Desktop
             => AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .WithInterFont()
-                .LogToTrace()
-                .UseReactiveUI();
+                .LogToTrace();
     }
 }

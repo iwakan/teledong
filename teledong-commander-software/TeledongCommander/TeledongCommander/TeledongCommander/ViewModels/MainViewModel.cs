@@ -2,10 +2,8 @@
 using Avalonia.Input;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore;
-using ReactiveUI;
 using System;
 using System.ComponentModel;
-using System.Reactive;
 using System.Runtime.CompilerServices;
 using Teledong;
 using Avalonia.Media;
@@ -140,7 +138,7 @@ public partial class MainViewModel : ViewModelBase
 
     const string settingsFolderName = "TeledongCommander";
 
-    TeledongManager teledongApi = new();
+    Teledong.Teledong teledongApi = new();
     List<OutputDevice> outputDevices = new();
 
     System.Timers.Timer sensorReadTimer = new();
@@ -376,7 +374,7 @@ public partial class MainViewModel : ViewModelBase
     {
         OutputDeviceViewModel? dataContext = SelectedOutputDeviceToAdd switch
         {
-            0 => new HandyOnlineApiViewModel(new HandyOnlineApi()),
+            0 => new HandyOnlineApiViewModel(new HandyStreamApi()),
             1 => new FunscriptRecorderViewModel(new FunscriptRecorder()),
             2 => new ButtplugApiViewModel(new ButtplugApi()),
             _ => null
@@ -399,7 +397,7 @@ public partial class MainViewModel : ViewModelBase
     {
         OutputDeviceViewModel? dataContext = typeId switch
         {
-            nameof(HandyOnlineApi) => new HandyOnlineApiViewModel(new HandyOnlineApi()),
+            nameof(HandyStreamApi) => new HandyOnlineApiViewModel(new HandyStreamApi()),
             nameof(FunscriptRecorder) => new FunscriptRecorderViewModel(new FunscriptRecorder()),
             nameof(ButtplugApi) => new ButtplugApiViewModel(new ButtplugApi()),
             _ => null
@@ -447,7 +445,7 @@ public partial class MainViewModel : ViewModelBase
         UserControl settingsView;
         UserControl advancedSettingsView = new AdvancedOutputSettingsView();
 
-        if (outputDevice is HandyOnlineApi)
+        if (outputDevice is HandyStreamApi)
         {
             settingsView = new HandyOnlineApiSettingsView();
         }

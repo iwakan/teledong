@@ -10,7 +10,7 @@ using System.Timers;
 
 namespace TeledongCommander;
 
-public class HandyOnlineApi : OutputDevice
+public class HandyHdspApi : OutputDevice
 {
     public override bool IsStarted => successfullyConnected;
     public override bool HasError => !string.IsNullOrEmpty(errorMessage);
@@ -39,7 +39,7 @@ public class HandyOnlineApi : OutputDevice
     DateTime previousCommandTime = DateTime.Now;
     double previousPosition = 1.0;
 
-    public HandyOnlineApi() : base()
+    public HandyHdspApi() : base()
     {
         Processor.Output += Processor_Output;
         httpClient = new HttpClient();

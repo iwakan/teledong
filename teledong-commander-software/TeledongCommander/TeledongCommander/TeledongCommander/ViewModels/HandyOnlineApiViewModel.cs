@@ -13,10 +13,10 @@ public partial class HandyOnlineApiViewModel : OutputDeviceViewModel
     [ObservableProperty]
     private string theHandyConnectionKey = "";
 
-    HandyOnlineApi handyApi => (HandyOnlineApi)OutputDevice;
-    public override string SettingsId => nameof(HandyOnlineApi);
+    HandyStreamApi handyApi => (HandyStreamApi)OutputDevice;
+    public override string SettingsId => nameof(HandyStreamApi);
 
-    public HandyOnlineApiViewModel(HandyOnlineApi outputDevice) : base(outputDevice)
+    public HandyOnlineApiViewModel(HandyStreamApi outputDevice) : base(outputDevice)
     {
         Title = "The Handy Connection Key";
         SecondaryTitle = outputDevice.ConnectionKey;
