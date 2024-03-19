@@ -12,19 +12,19 @@ namespace TeledongCommander.ViewModels;
 public partial class OutputDeviceViewModel : ViewModelBase
 {
     [ObservableProperty]
-    private string title = "title";
+    private string _title = "title";
 
     [ObservableProperty]
-    private string? secondaryTitle = "sec. title";
+    private string? _secondaryTitle = "sec. title";
 
     [ObservableProperty]
-    private string statusLabelSymbol = "☐";//☐🗹
+    private string _statusLabelSymbol = "☐";//☐🗹
 
     [ObservableProperty]
-    private Brush statusLabelBrush = new SolidColorBrush(Colors.LightGray);
+    private Brush _statusLabelBrush = new SolidColorBrush(Colors.LightGray);
 
     [ObservableProperty]
-    private bool isStarted = false;
+    private bool _isStarted = false;
 
     //[ObservableProperty]
     //private double writeInterval = 50;
@@ -33,13 +33,13 @@ public partial class OutputDeviceViewModel : ViewModelBase
     //private double writeCommandDuration = 250;
 
     [ObservableProperty]
-    private double filterStrength = 0.0;
+    private double _filterStrength = 0.0;
 
     [ObservableProperty]
-    private double filterTimeMilliseconds = 0;
+    private double _filterTimeMilliseconds = 0;
 
     [ObservableProperty]
-    private bool peakMotionMode = true;
+    private bool _peakMotionMode = true;
 
     public OutputDevice OutputDevice { get; private set; }
     public virtual string SettingsId { get; } = "";

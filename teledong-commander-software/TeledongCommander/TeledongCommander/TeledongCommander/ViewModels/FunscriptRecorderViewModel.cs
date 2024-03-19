@@ -18,12 +18,12 @@ public partial class FunscriptRecorderViewModel : OutputDeviceViewModel
 {
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FunscriptOutputPathAbbreviated))]
-    private string outputPath;
+    private string _outputPath;
 
     public string FunscriptOutputPathAbbreviated => AbbreviatePath(OutputPath);
 
     [ObservableProperty]
-    private string statusText = "Not recording.";
+    private string _statusText = "Not recording.";
 
     FunscriptRecorder funscriptRecorder => (FunscriptRecorder)OutputDevice;
     public override string SettingsId => nameof(FunscriptRecorder);
@@ -43,7 +43,7 @@ public partial class FunscriptRecorderViewModel : OutputDeviceViewModel
 
     private void Timer_Tick(object? sender, EventArgs e)
     {
-        StatusText = funscriptRecorder.StatusText;
+        StatusText = funscriptRecorder.StatusText; // todo remove timer and update from event or something
     }
 
     partial void OnOutputPathChanged(string value)

@@ -1,5 +1,4 @@
-﻿using Avalonia.Media;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +10,7 @@ namespace TeledongCommander.ViewModels;
 public partial class HandyOnlineApiViewModel : OutputDeviceViewModel
 {
     [ObservableProperty]
-    private string theHandyConnectionKey = "";
+    private string _theHandyConnectionKey = "";
 
     HandyStreamApi handyApi => (HandyStreamApi)OutputDevice;
     public override string SettingsId => nameof(HandyStreamApi);

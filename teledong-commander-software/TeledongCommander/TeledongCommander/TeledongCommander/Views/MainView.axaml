@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:TeledongCommander.ViewModels"
+             xmlns:local="clr-namespace:TeledongCommander"
              mc:Ignorable="d" d:DesignWidth="810" d:DesignHeight="700"
              x:Class="TeledongCommander.Views.MainView"
 			 xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
@@ -79,39 +80,59 @@
 
 		<!-- OUTPUT AREA -->
 		<Border Background="{StaticResource SecondaryBackground}" BorderThickness="0" Margin="20" Padding="20" CornerRadius="30" Grid.Column="2">
-			<StackPanel Spacing="10">
+			<Grid>
+				<StackPanel Spacing="10">
 
-				<TextBlock Text="Output devices" HorizontalAlignment="Center" Margin="0,0,0,15"></TextBlock>
+					<TextBlock Text="Output devices" HorizontalAlignment="Center" Margin="0,0,0,15"></TextBlock>
 				
-				<DockPanel>
-					<ComboBox ItemsSource="{Binding OutputDeviceTypes}" Grid.Row="1" MinWidth="200" SelectedIndex="{Binding SelectedOutputDeviceToAdd}" HorizontalAlignment="Left"></ComboBox>
-					<Button Command="{Binding AddOutputDeviceCommand}" Content="＋  Add" Grid.Row="1" MinWidth="70" MinHeight="30" IsVisible="True" HorizontalAlignment="Right"></Button>
-				</DockPanel>
-				
-				<Grid>
-					<Border Grid.Row="1" MinHeight="220" BorderBrush="Gray" BorderThickness="1" Background="#30000000">
-						<ScrollViewer>
-							<ListBox ItemsSource="{Binding OutputDeviceListItems}" SelectionMode="Single" SelectedIndex="{Binding SelectedOutputDeviceIndex}"/>
-						</ScrollViewer>
-					</Border>
-					<TextBlock IsVisible="{Binding !HasOutputDevices}" Text="No output devices. Please add one." VerticalAlignment="Center" HorizontalAlignment="Center"/>
-				</Grid>
+					<DockPanel>
+						<ComboBox ItemsSource="{Binding OutputDeviceTypes}" Grid.Row="1" MinWidth="200" SelectedIndex="{Binding SelectedOutputDeviceToAdd}" HorizontalAlignment="Left"></ComboBox>
+						<Button Command="{Binding AddOutputDeviceCommand}" Content="＋  Add" Grid.Row="1" MinWidth="70" MinHeight="30" IsVisible="True" HorizontalAlignment="Right"></Button>
+					</DockPanel>
 
-				<!--<Separator Grid.Row="2" VerticalAlignment="Top" Margin="0,12,0,0"></Separator>-->
-				
-				<ContentControl Content="{Binding OutputDeviceSettingsView}" MinHeight="200" IsVisible="{Binding !AdvancedOutputSettingsAreOpen}" Grid.Row="2" VerticalAlignment="Top" />
-				<ContentControl Content="{Binding AdvancedOutputSettingsView}" MinHeight="200" IsVisible="{Binding AdvancedOutputSettingsAreOpen}" Grid.Row="2" VerticalAlignment="Top" />
-				
-				<Button Command="{Binding ToggleAdvancedOutputSettingsCommand}" Content="Toggle Advanced Settings" Grid.Row="2" MinWidth="70" MinHeight="30" IsVisible="True" VerticalAlignment="Bottom" HorizontalAlignment="Center"></Button>
+					<Grid>
+						<Border Grid.Row="1" MinHeight="220" BorderBrush="Gray" BorderThickness="1" Background="#30000000">
+							<ScrollViewer>
+								<ListBox ItemsSource="{Binding OutputDevices}" SelectionMode="Single" SelectedItem="{Binding SelectedOutputDevice}">
+									<ListBox.ItemTemplate>
+										<DataTemplate>
+											<local:OutputDevicePreviewView></local:OutputDevicePreviewView>
+										</DataTemplate>
+									</ListBox.ItemTemplate>
+								</ListBox>
+							</ScrollViewer>
+						</Border>
+						<TextBlock IsVisible="{Binding !HasOutputDevices}" Text="No output devices. Please add one." VerticalAlignment="Center" HorizontalAlignment="Center"/>
+					</Grid>
 
+					<Grid IsVisible="{Binding !AdvancedOutputSettingsAreOpen}" Grid.Row="2" VerticalAlignment="Top">
+						<ContentControl MinHeight="200" Content="{Binding SelectedOutputDevice}">
+							<ContentControl.DataTemplates>
+								<DataTemplate DataType="vm:HandyOnlineApiViewModel">
+									<local:HandyOnlineApiSettingsView></local:HandyOnlineApiSettingsView>
+								</DataTemplate>
+								<DataTemplate DataType="vm:ButtplugApiViewModel">
+									<local:ButtplugApiSettingsView></local:ButtplugApiSettingsView>
+								</DataTemplate>
+								<DataTemplate DataType="vm:FunscriptRecorderViewModel">
+									<local:FunscriptRecorderSettingsView></local:FunscriptRecorderSettingsView>
+								</DataTemplate>
+							</ContentControl.DataTemplates>
+							.
+						</ContentControl>
+					</Grid>
+					<Grid IsVisible="{Binding AdvancedOutputSettingsIsVisible}" Grid.Row="2">
+						<local:AdvancedOutputSettingsView DataContext="{Binding SelectedOutputDevice}"/>
+					</Grid>
 				
-				<!--
-
-					<lvc:CartesianChart x:Name="outputPositionChart" TooltipPosition="Hidden" BorderBrush="{StaticResource PrimaryBackground}" BorderThickness="1" Height="70" Series="{Binding OutputPositionSeries}" XAxes="{Binding PositionChartXAxes}" AnimationsSpeed="0" ZoomMode="None">
-					</lvc:CartesianChart>
-				-->
-				
-			</StackPanel>
+					<!--
+						<lvc:CartesianChart x:Name="outputPositionChart" TooltipPosition="Hidden" BorderBrush="{StaticResource PrimaryBackground}" BorderThickness="1" Height="70" Series="{Binding OutputPositionSeries}" XAxes="{Binding PositionChartXAxes}" AnimationsSpeed="0" ZoomMode="None">
+						</lvc:CartesianChart>
+					-->
+				</StackPanel>
+			
+				<Button Command="{Binding ToggleAdvancedOutputSettingsCommand}" IsVisible="{Binding SelectedOutputDevice, Converter={x:Static ObjectConverters.IsNotNull}}" Content="Toggle Advanced Settings" Grid.Row="2" MinWidth="70" MinHeight="30" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="10"></Button>
+			</Grid>
 		</Border>
 
 		<!-- ABOUT BOX -->

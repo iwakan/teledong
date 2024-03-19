@@ -1,5 +1,4 @@
-﻿using Avalonia.Media;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -12,10 +11,10 @@ namespace TeledongCommander.ViewModels;
 public partial class ButtplugApiViewModel : OutputDeviceViewModel
 {
     [ObservableProperty]
-    private int selectedDevice = -1;
+    private int _selectedDevice = -1;
 
     [ObservableProperty]
-    private ObservableCollection<string> devices = new ObservableCollection<string>();
+    private ObservableCollection<string> _devices = new ObservableCollection<string>();
 
     ButtplugApi buttplugApi => (ButtplugApi)OutputDevice;
     public override string SettingsId => nameof(ButtplugApi);

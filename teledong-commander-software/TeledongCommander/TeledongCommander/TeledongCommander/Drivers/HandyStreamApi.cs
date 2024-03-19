@@ -49,6 +49,8 @@ public class HandyStreamApi : OutputDevice
 
     public HandyStreamApi() : base()
     {
+        ApiKey = App.UserData["HandyFw4BetaApiKey"];
+
         Processor.Output += Processor_Output;
         httpClient = new HttpClient();
         httpClient.Timeout = TimeSpan.FromSeconds(2);
@@ -107,6 +109,7 @@ public class HandyStreamApi : OutputDevice
 
                     try
                     {
+                        Debug.WriteLine("Putting points: " + points.Count);
                         var response = await httpClient.SendAsync(request);
 
                         if (response != null && response.IsSuccessStatusCode)
@@ -151,12 +154,14 @@ public class HandyStreamApi : OutputDevice
                             Debug.WriteLine(await response.Content.ReadAsStringAsync());
                             isPlaying = true;
                         }
+                        else
+                            Debug.WriteLine("Failed to start playing: " + response?.ToString());
                     }
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex.ToString());
+                Debug.WriteLine("Failed to start playing: " + ex.ToString());
             }
         }
     }

@@ -1,17 +1,12 @@
-﻿using Avalonia.Controls.Converters;
-using Avalonia.Input;
-using LiveChartsCore.SkiaSharpView;
+﻿using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore;
+using LiveChartsCore.Defaults;
+using LiveChartsCore.SkiaSharpView.Painting;
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Teledong;
-using Avalonia.Media;
-using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
-using Avalonia;
-using LiveChartsCore.Defaults;
-using Avalonia.Threading;
 using System.Threading;
 using System.Diagnostics;
 using System.Timers;
@@ -22,7 +17,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Avalonia.Controls;
 using System.Collections.ObjectModel;
 
 namespace TeledongCommander.ViewModels;
@@ -31,37 +25,39 @@ namespace TeledongCommander.ViewModels;
 public partial class MainViewModel : ViewModelBase
 {
     [ObservableProperty]
-    private string inputDeviceStatusText = "";
+    private string _inputDeviceStatusText = "";
 
     [ObservableProperty]
-    private bool canClickConnectInputDeviceButton = true;
+    private bool _canClickConnectInputDeviceButton = true;
 
     [ObservableProperty]
-    private bool teledongSunlightMode = false;
+    private bool _teledongSunlightMode = false;
 
     [ObservableProperty]
-    private bool teledongKeepPositionOnRelease = true;
+    private bool _teledongKeepPositionOnRelease = true;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DebugMode))]
-    private bool infoWindowIsOpen = false;
+    private bool _infoWindowIsOpen = false;
 
     public bool DebugMode => InfoWindowIsOpen;
 
     [ObservableProperty]
-    private int teledongFirmwareVersion;
+    private int _teledongFirmwareVersion;
 
     [ObservableProperty]
-    private bool teledongHasBadCalibration = false;
+    private bool _teledongHasBadCalibration = false;
 
     [ObservableProperty]
-    private bool advancedOutputSettingsAreOpen = false;
+    [NotifyPropertyChangedFor(nameof(AdvancedOutputSettingsIsVisible))]
+    private bool _advancedOutputSettingsAreOpen = false;
+
+    public bool AdvancedOutputSettingsIsVisible => AdvancedOutputSettingsAreOpen && SelectedOutputDevice != null;
+
+    public bool HasOutputDevices => OutputDevices.Any();
 
     [ObservableProperty]
-    private bool hasOutputDevices = false;
-
-    [ObservableProperty]
-    private List<string> outputDeviceTypes = new()
+    private List<string> _outputDeviceTypes = new()
     {
         "The Handy Key",
         "Funscript Recorder",
@@ -69,37 +65,34 @@ public partial class MainViewModel : ViewModelBase
     };
 
     [ObservableProperty]
-    private int selectedOutputDeviceToAdd = 0;
+    private int _selectedOutputDeviceToAdd = 0;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InputDeviceIsTeledong))]
     [NotifyPropertyChangedFor(nameof(InputDeviceIsMouse))]
-    private InputDevices inputDevice;
+    private InputDevices _inputDevice;
 
     public bool InputDeviceIsTeledong => InputDevice == InputDevices.Teledong;
     public bool InputDeviceIsMouse => InputDevice == InputDevices.Mouse;
 
     [ObservableProperty]
-    private ObservableCollection<UserControl> outputDeviceListItems = new();
+    [NotifyPropertyChangedFor(nameof(HasOutputDevices))]
+    private ObservableCollection<OutputDeviceViewModel> _outputDevices = new();
 
     [ObservableProperty]
-    private UserControl? outputDeviceSettingsView;
+    [NotifyPropertyChangedFor(nameof(AdvancedOutputSettingsIsVisible))]
+    private OutputDeviceViewModel? _selectedOutputDevice;
 
     [ObservableProperty]
-    private int selectedOutputDeviceIndex = -1;
+    private double _readInterval = 100;
 
     [ObservableProperty]
-    private UserControl? advancedOutputSettingsView;
+    private string _sensorValuesDebugString = "";
 
     [ObservableProperty]
-    private double readInterval = 100;
-
-    [ObservableProperty]
-    private string sensorValuesDebugString = "";
-
-    [ObservableProperty]
-    private ISeries[] inputPositionSeries = new ISeries[]
+    private ISeries[] _inputPositionSeries = new ISeries[]
     {
+        // Todo move this to view, viewmodel should not decide appearance
         new LineSeries<ObservablePoint> 
         {
             Values = new List<ObservablePoint>(),
@@ -112,8 +105,9 @@ public partial class MainViewModel : ViewModelBase
     };
 
     [ObservableProperty]
-    private ISeries[] outputPositionSeries = new ISeries[]
+    private ISeries[] _outputPositionSeries = new ISeries[]
     {
+        // Todo move this to view, viewmodel should not decide appearance
         new LineSeries<ObservablePoint>
         {
             Values = new List<ObservablePoint>(),
@@ -126,23 +120,21 @@ public partial class MainViewModel : ViewModelBase
     };
 
     [ObservableProperty]
-    private Axis[] positionChartXAxes;
+    private Axis[] _positionChartXAxes;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PositionChartXAxes))]
-    private double? positionChartMinX;
+    private double? _positionChartMinX;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PositionChartXAxes))]
-    private double? positionChartMaxX;
+    private double? _positionChartMaxX;
 
     const string settingsFolderName = "TeledongCommander";
 
     Teledong.Teledong teledongApi = new();
-    List<OutputDevice> outputDevices = new();
 
     System.Timers.Timer sensorReadTimer = new();
-    DispatcherTimer uiUpdateTimer = new();
     Mutex inputThreadMutex = new();
 
     DateTime referenceTime = DateTime.Now;
@@ -155,7 +147,7 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel()
     {
-        positionChartXAxes = new Axis[]
+        PositionChartXAxes = new Axis[]
         {
             new Axis
             {
@@ -170,21 +162,11 @@ public partial class MainViewModel : ViewModelBase
         sensorReadTimer.Interval = 50;
         sensorReadTimer.Elapsed += SensorReadTimer_Tick;
 
-        uiUpdateTimer.Interval = TimeSpan.FromMilliseconds(500);
-        uiUpdateTimer.Tick += UiUpdateTimer_Tick;
-
         LoadSettings();
 
         sensorReadTimer.Start();
-        uiUpdateTimer.Start();
 
         InputDevice = InputDevices.Teledong;
-    }
-
-    private void UiUpdateTimer_Tick(object? sender, EventArgs e)
-    {
-        // Todo handle this stuff on demand using bindings/events, rather than in this timer. cba right now
-        UpdateUiStatus();
     }
 
     private void UpdateUiStatus()
@@ -264,8 +246,8 @@ public partial class MainViewModel : ViewModelBase
             // Send raw position to output. The output device processor classes handles filtering/latency etc.
             if (!skipRead)
             {
-                foreach (var outputDevice in outputDevices)
-                    outputDevice.InputPostion(position);
+                foreach (var outputDevice in OutputDevices)
+                    outputDevice.OutputDevice.InputPostion(position);
             }
             skipRead = !skipRead;
 
@@ -372,7 +354,7 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void AddOutputDevice()
     {
-        OutputDeviceViewModel? dataContext = SelectedOutputDeviceToAdd switch
+        OutputDeviceViewModel? outputDeviceViewModel = SelectedOutputDeviceToAdd switch
         {
             0 => new HandyOnlineApiViewModel(new HandyStreamApi()),
             1 => new FunscriptRecorderViewModel(new FunscriptRecorder()),
@@ -380,22 +362,19 @@ public partial class MainViewModel : ViewModelBase
             _ => null
         };
 
-        if (dataContext == null)
+        if (outputDeviceViewModel == null)
             return;
 
-        dataContext.Removed += OnOutputDeviceRemoved;
+        outputDeviceViewModel.Removed += OnOutputDeviceRemoved;
 
         var outputDevicePreviewView = new OutputDevicePreviewView();
-        outputDevicePreviewView.DataContext = dataContext;
-        OutputDeviceListItems.Add(outputDevicePreviewView);
-        outputDevices.Add(dataContext.OutputDevice);
-
-        HasOutputDevices = OutputDeviceListItems.Count > 0;
+        outputDevicePreviewView.DataContext = outputDeviceViewModel;
+        OutputDevices.Add(outputDeviceViewModel);
     }
 
     private OutputDeviceViewModel? AddOutputDeviceManually(string typeId)
     {
-        OutputDeviceViewModel? dataContext = typeId switch
+        OutputDeviceViewModel? outputDeviceViewModel = typeId switch
         {
             nameof(HandyStreamApi) => new HandyOnlineApiViewModel(new HandyStreamApi()),
             nameof(FunscriptRecorder) => new FunscriptRecorderViewModel(new FunscriptRecorder()),
@@ -403,19 +382,14 @@ public partial class MainViewModel : ViewModelBase
             _ => null
         };
 
-        if (dataContext == null)
+        if (outputDeviceViewModel == null)
             return null;
 
-        dataContext.Removed += OnOutputDeviceRemoved;
+        outputDeviceViewModel.Removed += OnOutputDeviceRemoved;
 
-        var outputDevicePreviewView = new OutputDevicePreviewView();
-        outputDevicePreviewView.DataContext = dataContext;
-        OutputDeviceListItems.Add(outputDevicePreviewView);
-        outputDevices.Add(dataContext.OutputDevice);
+        OutputDevices.Add(outputDeviceViewModel);
 
-        HasOutputDevices = OutputDeviceListItems.Count > 0;
-
-        return dataContext;
+        return outputDeviceViewModel;
     }
 
     private void OnOutputDeviceRemoved(object? sender, EventArgs e)
@@ -423,46 +397,10 @@ public partial class MainViewModel : ViewModelBase
         if (sender is not OutputDeviceViewModel outputDeviceViewModel)
             return;
 
-        if (!(OutputDeviceListItems.FirstOrDefault((view) => { return view.DataContext == outputDeviceViewModel; }) is UserControl viewToRemove))
+        if (!(OutputDevices.FirstOrDefault((view) => { return view == outputDeviceViewModel; }) is OutputDeviceViewModel outputDeviceToRemove))
             return;
 
-        OutputDeviceListItems.Remove(viewToRemove);
-        outputDevices.Remove(outputDeviceViewModel.OutputDevice);
-
-        HasOutputDevices = OutputDeviceListItems.Count > 0;
-    }
-
-    partial void OnSelectedOutputDeviceIndexChanged(int value)
-    {
-        if (value < 0 || value >= outputDevices.Count)
-        {
-            OutputDeviceSettingsView = null;
-            return;
-        }
-
-        var outputDevice = outputDevices[value];
-
-        UserControl settingsView;
-        UserControl advancedSettingsView = new AdvancedOutputSettingsView();
-
-        if (outputDevice is HandyStreamApi)
-        {
-            settingsView = new HandyOnlineApiSettingsView();
-        }
-        else if (outputDevice is ButtplugApi)
-        {
-            settingsView = new ButtplugApiSettingsView();
-        }
-        else if (outputDevice is FunscriptRecorder)
-        {
-            settingsView = new FunscriptRecorderSettingsView();
-        }
-        else
-            return;
-
-        settingsView.DataContext = advancedSettingsView.DataContext = OutputDeviceListItems[value].DataContext;
-        OutputDeviceSettingsView = settingsView;
-        AdvancedOutputSettingsView = advancedSettingsView;
+        OutputDevices.Remove(outputDeviceToRemove);
     }
 
     [RelayCommand]
@@ -537,8 +475,8 @@ public partial class MainViewModel : ViewModelBase
 
     private void DisconnectOutputDevice()
     {
-        foreach (var device in outputDevices)
-            device.Stop();
+        foreach (var deviceModel in OutputDevices)
+            deviceModel.OutputDevice.Stop();
     }
 
     public void SaveAndFree()
@@ -637,10 +575,8 @@ public partial class MainViewModel : ViewModelBase
 
             var outputDevicesElement = settings.CreateElement("OutputDevices");
 
-            foreach (var outputDeviceView in OutputDeviceListItems)
+            foreach (var outputDeviceViewModel in OutputDevices)
             {
-                var outputDeviceViewModel = (OutputDeviceViewModel)outputDeviceView.DataContext!;
-
                 var outputDeviceElement = settings.CreateElement(outputDeviceViewModel.SettingsId); 
                 outputDeviceElement.SetAttribute("PeakMotionMode", outputDeviceViewModel.PeakMotionMode ? "true" : "false");
                 outputDeviceElement.SetAttribute("FilterTime", outputDeviceViewModel.FilterTimeMilliseconds.ToString("N0"));
