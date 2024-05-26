@@ -12,6 +12,7 @@ namespace TeledongCommander
     // Class that takes raw points as input, and does stuff like add delay, reduce number of points, etc, before outputting (via events)
     public class OutputProcessor
     {
+        public bool SkipFiltering { get; set; } = false;
         public double FilterStrength { get; set; } = 0.00;
         public TimeSpan FilterTime { get; set; } = TimeSpan.FromMilliseconds(0);
         public bool PeakMotionMode { get; set; } = true;
@@ -38,7 +39,7 @@ namespace TeledongCommander
 
             if (!PeakMotionMode)
             {
-                if (FilterTime == TimeSpan.Zero || FilterStrength == 0)
+                if (SkipFiltering || FilterTime == TimeSpan.Zero || FilterStrength == 0)
                 {
                     // Raw unfiltered stream of points. 
                     outputPointBuffer.Enqueue(new StrokerPoint(position, now));
@@ -66,7 +67,7 @@ namespace TeledongCommander
             {
                 // Peak motion write mode. Only writes a position after the motion on the Teledong has stopped/reversed.
                 // Should mean that positions are usually only written twice per stroke, at the max/min amplitude peaks. 
-                // This mode can be used if the device API favors more rare updates due to latency etc, such as The Handy http API.
+                // This mode should be used if the device API favors more rare updates due to latency/bandwidth/capacity.
 
                 bool shouldSendPosition = false;
                 var positionDelta = position - previousPosition;
@@ -125,7 +126,7 @@ namespace TeledongCommander
             // Process queue and output
             try
             {
-                TimeSpan outputTimeThreshold = DateTime.Now - referenceTime - FilterTime;
+                TimeSpan outputTimeThreshold = DateTime.Now - referenceTime - (SkipFiltering ? TimeSpan.Zero : FilterTime);
 
                 StrokerPoint nextPoint = default;
                 bool shouldOutput = false;
@@ -136,7 +137,7 @@ namespace TeledongCommander
                     {
                         nextPoint = outputPointBuffer.Dequeue();
                         shouldOutput = true;
-                        //Debug.WriteLine($"POINT TIME 1: {nextPoint.Time} - Thread: {Thread.CurrentThread.ManagedThreadId}");
+                        //Debug.WriteLine($"POINT TIME: {nextPoint.Time}");
                     }
                     else
                         break;

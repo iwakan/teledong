@@ -78,6 +78,8 @@ namespace TeledongCommander
             if (points.Count == 0)
                 return;
 
+            // Todo filter points with RamerDouglasPeucker
+
             var actionsJson = new JsonArray();
 
             foreach (FunscriptPoint point in points)

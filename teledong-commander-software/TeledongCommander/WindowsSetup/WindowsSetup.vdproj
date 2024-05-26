@@ -39,11 +39,19 @@
         "InstallerBootstrapper" = "3:2"
             "BootstrapperCfg:{63ACBE69-63AA-4F98-B2B6-99F9E24495F2}"
             {
-            "Enabled" = "11:TRUE"
+            "Enabled" = "11:FALSE"
             "PromptEnabled" = "11:TRUE"
             "PrerequisitesLocation" = "2:1"
             "Url" = "8:"
             "ComponentsUrl" = "8:"
+                "Items"
+                {
+                    "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:Microsoft.NetCore.CoreRuntime.8.0.x64"
+                    {
+                    "Name" = "8:.NET Runtime 8.0.3 (x64)"
+                    "ProductCode" = "8:Microsoft.NetCore.CoreRuntime.8.0.x64"
+                    }
+                }
             }
         }
         "Release"
@@ -163,20 +171,20 @@
         "Product"
         {
         "Name" = "8:Microsoft Visual Studio"
-        "ProductName" = "8:TeledongCommander"
-        "ProductCode" = "8:{50288883-CABB-4B40-8253-4142F2AB5C36}"
-        "PackageCode" = "8:{DB7ADED8-6772-4512-AD48-32DB8D8DEA7E}"
+        "ProductName" = "8:Teledong Commander"
+        "ProductCode" = "8:{A327EB6B-4AC6-407F-B038-40B57298E37B}"
+        "PackageCode" = "8:{74956130-8759-410F-8B32-700988E84795}"
         "UpgradeCode" = "8:{FBFDEDF8-3913-447C-8172-19CEA7A47B1E}"
         "AspNetVersion" = "8:2.0.50727.0"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:FALSE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:TRUE"
-        "ProductVersion" = "8:0.2.0"
+        "ProductVersion" = "8:0.3.0"
         "Manufacturer" = "8:Teledong"
         "ARPHELPTELEPHONE" = "8:"
-        "ARPHELPLINK" = "8:"
-        "Title" = "8:TeledongCommander"
+        "ARPHELPLINK" = "8:https://teledong.com"
+        "Title" = "8:Teledong Commander"
         "Subject" = "8:"
         "ARPCONTACT" = "8:"
         "Keywords" = "8:"
@@ -728,7 +736,7 @@
             }
             "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_BAC0014A49274C33868BA7DF0E70EC5B"
             {
-            "SourcePath" = "8:..\\TeledongCommander\\TeledongCommander.Desktop\\obj\\Release\\net7.0\\apphost.exe"
+            "SourcePath" = "8:..\\TeledongCommander\\TeledongCommander.Desktop\\obj\\Debug\\net8.0\\apphost.exe"
             "TargetName" = "8:"
             "Tag" = "8:"
             "Folder" = "8:_871A99F76C704DCB8BC07902AA6A4F1A"

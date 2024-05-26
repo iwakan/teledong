@@ -612,17 +612,23 @@ public partial class MainViewModel : ViewModelBase
 
 public struct StrokerPoint
 {
+    /// <summary>
+    /// From 0 to 1
+    /// </summary>
+    public double Position { get; }
+    /// <summary>
+    /// Time it should take to move to this position. Optional.
+    /// </summary>
+    public TimeSpan Time { get; }
+
+    public double X => Position;
+    public double Y => Time.TotalSeconds;
+
     public StrokerPoint(double position, TimeSpan time)
     {
         Position = position;
         Time = time;
     }
-
-    public double Position; // From 0 to 1
-    public TimeSpan Time;
-
-    public double X => Position;
-    public double Y => Time.TotalSeconds;
 
     public StrokerPoint AddLatency(double latency)
     {

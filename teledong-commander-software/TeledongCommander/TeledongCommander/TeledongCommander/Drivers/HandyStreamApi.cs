@@ -12,8 +12,6 @@ namespace TeledongCommander;
 
 public class HandyStreamApi : OutputDevice
 {
-    public TimeSpan BufferTime { get; set; } = TimeSpan.FromSeconds(0.8);
-
     public override bool IsStarted => successfullyConnected;
     public override bool HasError => !string.IsNullOrEmpty(errorMessage);
 
@@ -45,15 +43,18 @@ public class HandyStreamApi : OutputDevice
     string ApiKey = "";
     bool isPlaying = false;
     int tailPointStreamIndex = 0;
-
+    bool hasAuthed = false;
+    int millisecondsDiscrepancy = 0;
+    int millisecondsOffset => (int)Processor.FilterTime.TotalMilliseconds;
 
     public HandyStreamApi() : base()
     {
         ApiKey = App.UserData["HandyFw4BetaApiKey"];
 
+        Processor.SkipFiltering = true;
         Processor.Output += Processor_Output;
         httpClient = new HttpClient();
-        httpClient.Timeout = TimeSpan.FromSeconds(2);
+        httpClient.Timeout = TimeSpan.FromSeconds(10);
     }
 
     private async void Processor_Output(object? sender, OutputEventArgs e)
@@ -72,25 +73,29 @@ public class HandyStreamApi : OutputDevice
         // Record point in buffer
         buffer.Enqueue(new HspPoint() { Position = e.Position, Time = now });
 
-        if (now >= lastBufferPushTime + BufferTime)
+        if (now >= lastBufferPushTime )//+ Processor.FilterTime)
         {
             try
             {
                 // Push buffer to stream if enough time has passed
                 lastBufferPushTime = now;
+                int firstPointTime = -10000;
                 var points = new List<object>();
                 do
                 {
                     var point = buffer.Dequeue();
+                    if (firstPointTime == -10000)
+                        firstPointTime = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset;
                     points.Add(new
                     {
-                        t = (int)(point.Time - startTime).TotalMilliseconds,
+                        t = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset,
                         x = (int)Math.Round(point.Position * 100)
                     });
                     tailPointStreamIndex++;
                 }
                 while (buffer.Any());
 
+                var benchmarkTime = DateTime.Now;
                 using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/add"))
                 {
                     request.Headers.TryAddWithoutValidation("accept", "application/json");
@@ -112,9 +117,18 @@ public class HandyStreamApi : OutputDevice
                         Debug.WriteLine("Putting points: " + points.Count);
                         var response = await httpClient.SendAsync(request);
 
+                        Debug.WriteLine("API latency: " + (DateTime.Now - benchmarkTime).TotalMilliseconds);
+
                         if (response != null && response.IsSuccessStatusCode)
                         {
-                            Debug.WriteLine(await response.Content.ReadAsStringAsync());
+                            var responseText = await response.Content.ReadAsStringAsync();
+                            var responseJson = System.Text.Json.JsonSerializer.Deserialize<PutPointsApiResponse>(responseText);
+                            if (responseJson != null && responseJson.result != null)
+                            {
+                                millisecondsDiscrepancy = (responseJson.result.current_time - firstPointTime);
+                                //millisecondsOffset += millisecondsDiscrepancy;
+                            }
+                            Debug.WriteLine("Point put response: " + responseText);
                         }
                     }
                     catch (Exception ex)
@@ -185,6 +199,33 @@ public class HandyStreamApi : OutputDevice
 
         try
         {
+            if (!hasAuthed)
+            {
+                Debug.WriteLine("Authenticating...");
+                using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "auth/token/issue"))
+                {
+                    request.Headers.TryAddWithoutValidation("accept", "application/json");
+                    //request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
+                    request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+
+                    var contentRaw = new
+                    {
+                        ck = ConnectionKey
+                    };
+                    request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
+                    request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+
+                    var response = await httpClient.SendAsync(request);
+
+                    if (response != null && response.IsSuccessStatusCode)
+                    {
+                        Debug.WriteLine("Authentication response: " + await response.Content.ReadAsStringAsync());
+                        hasAuthed = true;
+                    }
+                }
+            }
+
+
             await Stop();
 
             using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/setup"))
@@ -205,7 +246,7 @@ public class HandyStreamApi : OutputDevice
                 if (response != null && response.IsSuccessStatusCode)
                 {
                     successfullyConnected = true;
-                    Debug.WriteLine(await response.Content.ReadAsStringAsync());
+                    Debug.WriteLine("Stream setup command response: " + await response.Content.ReadAsStringAsync());
                 }
             }
         }
@@ -315,5 +356,20 @@ public class HandyStreamApi : OutputDevice
     {
         public double Position; // From 0 to 1
         public DateTime Time;
+    }
+
+    protected class PutPointsApiResponse
+    {
+        public PutPointsApiResponseResult? result { get; set; }
+    }
+
+    protected class PutPointsApiResponseResult
+    {
+        public int points { get; set; }
+        public int current_point { get; set; }
+        public int current_time { get; set; }
+        public int first_point_time { get; set; }
+        public int last_point_time { get; set; }
+        public int tail_point_stream_index { get; set; }
     }
 }
