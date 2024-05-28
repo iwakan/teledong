@@ -39,7 +39,7 @@ public partial class OutputDeviceViewModel : ViewModelBase
     private double _filterTimeMilliseconds = 0;
 
     [ObservableProperty]
-    private bool _peakMotionMode = true;
+    private bool _peakMotionMode = false;
 
     public OutputDevice OutputDevice { get; private set; }
     public virtual string SettingsId { get; } = "";

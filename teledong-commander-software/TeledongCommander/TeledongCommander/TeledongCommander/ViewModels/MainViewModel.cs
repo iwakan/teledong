@@ -491,6 +491,7 @@ public partial class MainViewModel : ViewModelBase
 
     private void LoadSettings()
     {
+        // Todo refactor this, use automatic serialization/deserialization
         var settingsFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), settingsFolderName, "settings.xml");
         if (File.Exists(settingsFilePath))
         {
@@ -557,6 +558,7 @@ public partial class MainViewModel : ViewModelBase
     {
         try
         {
+            // Todo refactor this, use automatic serialization/deserialization
             var settingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), settingsFolderName, "settings.xml");
             if (!Directory.Exists(Path.GetDirectoryName(settingsFilePath)))
                 Directory.CreateDirectory(Path.GetDirectoryName(settingsFilePath)!);

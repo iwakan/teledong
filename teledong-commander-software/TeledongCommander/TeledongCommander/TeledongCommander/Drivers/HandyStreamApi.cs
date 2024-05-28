@@ -42,10 +42,15 @@ public class HandyStreamApi : OutputDevice
     int streamId = 100;
     string ApiKey = "";
     bool isPlaying = false;
+    bool hasInitedStart = false;
     int tailPointStreamIndex = 0;
     bool hasAuthed = false;
     int millisecondsDiscrepancy = 0;
     int millisecondsOffset => (int)Processor.FilterTime.TotalMilliseconds;
+    bool flushNext = false;
+    int alternatePointNoise = 0;
+    int numberOfBatchedPoints = 2;
+    int[] previousPoints = { 0, 100, 2 };
 
     public HandyStreamApi() : base()
     {
@@ -53,6 +58,8 @@ public class HandyStreamApi : OutputDevice
 
         Processor.SkipFiltering = true;
         Processor.Output += Processor_Output;
+        Processor.PeakMotionMode = false;
+        Processor.FilterTime = TimeSpan.FromMilliseconds(1000);
         httpClient = new HttpClient();
         httpClient.Timeout = TimeSpan.FromSeconds(10);
     }
@@ -64,34 +71,56 @@ public class HandyStreamApi : OutputDevice
 
         var now = DateTime.Now;
 
-        if (!isPlaying && !buffer.Any())
+        if (!hasInitedStart)
         {
             lastBufferPushTime = now;
             startTime = now;
+            hasInitedStart = true;
         }
+
+        /*if (!isPlaying && !buffer.Any())
+        {
+            lastBufferPushTime = now;
+            startTime = now;
+        }*/
 
         // Record point in buffer
         buffer.Enqueue(new HspPoint() { Position = e.Position, Time = now });
 
-        if (now >= lastBufferPushTime )//+ Processor.FilterTime)
+        if (buffer.Count >= numberOfBatchedPoints) //now >= lastBufferPushTime )//+ Processor.FilterTime)
         {
             try
             {
                 // Push buffer to stream if enough time has passed
                 lastBufferPushTime = now;
-                int firstPointTime = -10000;
+                //int firstPointTime = -10000;
                 var points = new List<object>();
                 do
                 {
                     var point = buffer.Dequeue();
-                    if (firstPointTime == -10000)
-                        firstPointTime = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset;
+                    var x = Math.Clamp((int)Math.Round(point.Position * 100) + alternatePointNoise, 0, 100);
+                    /*if (previousPoints[2] > previousPoints[1] && previousPoints[1] == previousPoints[0] && previousPoints[0] == x)
+                    {
+                        x += 1;
+                        if (x > 100)
+                            x = 100;
+                    }
+                    else
+                    {
+                        previousPoints[2] = previousPoints[1];
+                        previousPoints[1] = previousPoints[0];
+                        previousPoints[0] = x;
+                    }*/
+                    //if (firstPointTime == -10000)
+                    //    firstPointTime = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset;
+
                     points.Add(new
                     {
                         t = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset,
-                        x = (int)Math.Round(point.Position * 100)
+                        x = x
                     });
                     tailPointStreamIndex++;
+                    alternatePointNoise *= -1;
                 }
                 while (buffer.Any());
 
@@ -102,19 +131,21 @@ public class HandyStreamApi : OutputDevice
                     request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
                     request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
 
+                    if (flushNext)
+                        tailPointStreamIndex = points.Count;
+
                     var contentRaw = new
                     {
                         points = points.ToArray(),
-                        flush = false,
+                        flush = flushNext,
                         tailPointStreamIndex = tailPointStreamIndex,
-
                     };
                     request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
                     request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
 
                     try
                     {
-                        Debug.WriteLine("Putting points: " + points.Count);
+                        Debug.WriteLine("Putting points: " + points.Count + " time: " + startTime.ToLongTimeString());
                         var response = await httpClient.SendAsync(request);
 
                         Debug.WriteLine("API latency: " + (DateTime.Now - benchmarkTime).TotalMilliseconds);
@@ -125,8 +156,14 @@ public class HandyStreamApi : OutputDevice
                             var responseJson = System.Text.Json.JsonSerializer.Deserialize<PutPointsApiResponse>(responseText);
                             if (responseJson != null && responseJson.result != null)
                             {
-                                millisecondsDiscrepancy = (responseJson.result.current_time - firstPointTime);
+                                //millisecondsDiscrepancy = (responseJson.result.current_time - firstPointTime);
                                 //millisecondsOffset += millisecondsDiscrepancy;
+                                if (responseJson.result.points + 100 > responseJson.result.max_points)
+                                    flushNext = true;
+                                if (responseJson.result.current_time > responseJson.result.last_point_time)
+                                {
+                                    Debug.WriteLine("NB: Point timing off by: " + (responseJson.result.current_time - responseJson.result.last_point_time));
+                                }
                             }
                             Debug.WriteLine("Point put response: " + responseText);
                         }
@@ -136,12 +173,11 @@ public class HandyStreamApi : OutputDevice
                         Debug.WriteLine("Failed: " + ex.Message);
                         errorMessage = "Failed to send positions";
                         TriggerStatusChanged();
-
                     }
                 }
 
 
-                if (!isPlaying)
+                if ((!isPlaying && (DateTime.Now - startTime) > TimeSpan.FromSeconds(1)) || flushNext)
                 {
                     using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/play"))
                     {
@@ -151,8 +187,8 @@ public class HandyStreamApi : OutputDevice
 
                         var contentRaw = new
                         {
-                            startTime = (int)(startTime-now).TotalMilliseconds,
-                            serverTime = ((DateTimeOffset)startTime.ToUniversalTime()).ToUnixTimeMilliseconds(),
+                            startTime = 0, //-(int)(DateTime.Now - benchmarkTime).TotalMilliseconds,
+                            serverTime = ((DateTimeOffset)DateTimeOffset.Now.ToUniversalTime()).ToUnixTimeMilliseconds(),
                             playbackRate = 1.0,
                             loop = false,
                         };
@@ -164,7 +200,7 @@ public class HandyStreamApi : OutputDevice
                         if (response != null && response.IsSuccessStatusCode)
                         {
                             successfullyConnected = true;
-                            Debug.WriteLine("START PLAYING");
+                            Debug.WriteLine("START PLAYING " + startTime.ToLongTimeString());
                             Debug.WriteLine(await response.Content.ReadAsStringAsync());
                             isPlaying = true;
                         }
@@ -177,6 +213,8 @@ public class HandyStreamApi : OutputDevice
             {
                 Debug.WriteLine("Failed to start playing: " + ex.ToString());
             }
+
+            flushNext = false;
         }
     }
 
@@ -332,6 +370,7 @@ public class HandyStreamApi : OutputDevice
     {
         successfullyConnected = false;
         isPlaying = false;
+        hasInitedStart = false;
         httpClient.CancelPendingRequests();
         TriggerStatusChanged();
 
@@ -366,6 +405,7 @@ public class HandyStreamApi : OutputDevice
     protected class PutPointsApiResponseResult
     {
         public int points { get; set; }
+        public int max_points { get; set; }
         public int current_point { get; set; }
         public int current_time { get; set; }
         public int first_point_time { get; set; }
