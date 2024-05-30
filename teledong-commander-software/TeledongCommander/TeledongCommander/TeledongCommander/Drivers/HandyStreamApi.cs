@@ -46,10 +46,17 @@ public class HandyStreamApi : OutputDevice
     int tailPointStreamIndex = 0;
     bool hasAuthed = false;
     int millisecondsDiscrepancy = 0;
-    int millisecondsOffset => (int)Processor.FilterTime.TotalMilliseconds;
+    bool hasAdjustedDiscrepancyTime = false;
+    int millisecondsOffset => hasAdjustedDiscrepancyTime ? (int)Processor.FilterTime.TotalMilliseconds : 0;
     bool flushNext = false;
     int alternatePointNoise = 0;
-    int numberOfBatchedPoints = 2;
+    int numberOfBatchedPoints => Processor.FilterTime.TotalMilliseconds switch
+    {
+        <400 => 1,
+        <800 => 2,
+        <1200 => 3,
+        _ => 4
+    };
     int[] previousPoints = { 0, 100, 2 };
 
     public HandyStreamApi() : base()
@@ -116,7 +123,7 @@ public class HandyStreamApi : OutputDevice
 
                     points.Add(new
                     {
-                        t = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset,
+                        t = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset - millisecondsDiscrepancy,
                         x = x
                     });
                     tailPointStreamIndex++;
@@ -160,9 +167,11 @@ public class HandyStreamApi : OutputDevice
                                 //millisecondsOffset += millisecondsDiscrepancy;
                                 if (responseJson.result.points + 100 > responseJson.result.max_points)
                                     flushNext = true;
-                                if (responseJson.result.current_time > responseJson.result.last_point_time)
+                                if (isPlaying && !hasAdjustedDiscrepancyTime)
                                 {
-                                    Debug.WriteLine("NB: Point timing off by: " + (responseJson.result.current_time - responseJson.result.last_point_time));
+                                    millisecondsDiscrepancy = responseJson.result.last_point_time - responseJson.result.current_time;// - 1000;
+                                    Debug.WriteLine("Timing discrepancy: " + millisecondsDiscrepancy);
+                                    hasAdjustedDiscrepancyTime = true;
                                 }
                             }
                             Debug.WriteLine("Point put response: " + responseText);
