@@ -47,16 +47,10 @@ public class HandyStreamApi : OutputDevice
     bool hasAuthed = false;
     int millisecondsDiscrepancy = 0;
     bool hasAdjustedDiscrepancyTime = false;
-    int millisecondsOffset => hasAdjustedDiscrepancyTime ? (int)Processor.FilterTime.TotalMilliseconds : 0;
+    int millisecondsOffset => hasAdjustedDiscrepancyTime ? (int)Processor.FilterTime.TotalMilliseconds : 100;
     bool flushNext = false;
     int alternatePointNoise = 0;
-    int numberOfBatchedPoints => Processor.FilterTime.TotalMilliseconds switch
-    {
-        <400 => 1,
-        <800 => 2,
-        <1200 => 3,
-        _ => 4
-    };
+    int numberOfBatchedPoints => (int)Math.Ceiling(Processor.FilterTime.TotalMilliseconds / 400.0);
     int[] previousPoints = { 0, 100, 2 };
 
     public HandyStreamApi() : base()

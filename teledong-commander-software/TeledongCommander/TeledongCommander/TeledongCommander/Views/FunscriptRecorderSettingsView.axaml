@@ -15,7 +15,7 @@
 	<Grid Margin="10,15,10,5">
 		<StackPanel Spacing="15">
 			<DockPanel VerticalAlignment="Top" Height="30">
-				<Button Content="⏺ Start recording" Command="{Binding StartCommand}" IsVisible="{Binding !IsStarted}" VerticalAlignment="Center"></Button>
+				<Button Content="⏺ Start recording" Command="{Binding StartCommand}" Background="Green" IsVisible="{Binding !IsStarted}" VerticalAlignment="Center"></Button>
 				<Button Content="⏹ Stop recording" Command="{Binding StopCommand}" IsVisible="{Binding IsStarted}" VerticalAlignment="Center"></Button>
 				<Button Content="❌ Remove" Command="{Binding RemoveCommand}" VerticalAlignment="Center" HorizontalAlignment="Right"></Button>
 			</DockPanel>

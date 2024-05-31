@@ -9,7 +9,10 @@ using TeledongCommander.ViewModels;
 
 namespace TeledongCommander
 {
-    // Class that takes raw points as input, and does stuff like add delay, reduce number of points, etc, before outputting (via events)
+    /// <summary>
+    /// Class that takes raw points as input via PutPositionAndProcessOutput, and does stuff like add delay, reduce number of points, etc, before outputting via event Output.
+    /// Not all output devices need this. If PeakMotionMode is false and SkipFiltering is true, points are simply passed to the output event immediately upon input.
+    /// </summary>
     public class OutputProcessor
     {
         public bool SkipFiltering { get; set; } = false;
@@ -27,12 +30,11 @@ namespace TeledongCommander
 
         public event EventHandler<OutputEventArgs>? Output;
 
-        public OutputProcessor() 
-        {
-        }
-
-        // This will send the current position (from 0 to 1) to processing, and trigger the Output event if a new position is ready to be sent to the device.
-        // Should be called as often and soon as possible, such as every time you have a new reading from the sensor.
+        /// <summary>
+        /// This will send the current position (from 0 to 1) to processing, and trigger the Output event if a new position is ready to be sent to the device.
+        /// Should be called as often and soon as possible, such as every time you have a new reading from the sensor.
+        /// </summary>
+        /// <param name="position"></param>
         public void PutPositionAndProcessOutput(double position)
         {
             var now = DateTime.Now - referenceTime;
@@ -163,8 +165,14 @@ namespace TeledongCommander
 
     public class OutputEventArgs : EventArgs
     {
-        public double Position { get; } // From 0 to 1.
-        public TimeSpan Duration { get; } // Time it should take to move to this position. Optional.
+        /// <summary>
+        /// From 0 to 1.
+        /// </summary>
+        public double Position { get; }
+        /// <summary>
+        /// Time it should take to move to this position. Optional.
+        /// </summary>
+        public TimeSpan Duration { get; }
 
         public OutputEventArgs(double position, TimeSpan duration)
         {

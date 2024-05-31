@@ -73,6 +73,21 @@ public partial class OutputDeviceViewModel : ViewModelBase
         Removed?.Invoke(this, EventArgs.Empty);
     }
 
+    [RelayCommand]
+    protected void IncreaseFilterLatency()
+    {
+        FilterTimeMilliseconds += 100;
+    }
+
+    [RelayCommand]
+    protected void DecreaseFilterLatency()
+    {
+        if (FilterTimeMilliseconds > 100)
+            FilterTimeMilliseconds -= 100;
+        else
+            FilterTimeMilliseconds = 0;
+    }
+
     partial void OnFilterStrengthChanged(double value)
     {
         OutputDevice.Processor.FilterStrength = value;

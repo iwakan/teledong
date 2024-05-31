@@ -38,7 +38,7 @@
 					<RowDefinition Height="6*"></RowDefinition>
 				</Grid.RowDefinitions>
 				
-				<TextBlock Text="Input device" Grid.Row="0" HorizontalAlignment="Center"></TextBlock>
+				<TextBlock Text="Input" FontSize="20" Grid.Row="0" HorizontalAlignment="Center"></TextBlock>
 				<Separator VerticalAlignment="Bottom" Margin="0,0,0,5" />
 
 				<StackPanel Grid.Row="1">
@@ -81,22 +81,22 @@
 		<!-- OUTPUT AREA -->
 		<Border Background="{StaticResource SecondaryBackground}" BorderThickness="0" Margin="20" Padding="20" CornerRadius="30" Grid.Column="2">
 			<Grid>
-				<StackPanel Spacing="10">
+				<Grid RowDefinitions="50,50,1.2*,*,1.5*">
 
-					<TextBlock Text="Output devices" HorizontalAlignment="Center" Margin="0,0,0,15"></TextBlock>
+					<TextBlock Text="Output" FontSize="20" HorizontalAlignment="Center" Margin="0,0,0,15"></TextBlock>
 				
-					<DockPanel>
-						<ComboBox ItemsSource="{Binding OutputDeviceTypes}" Grid.Row="1" MinWidth="200" SelectedIndex="{Binding SelectedOutputDeviceToAdd}" HorizontalAlignment="Left"></ComboBox>
-						<Button Command="{Binding AddOutputDeviceCommand}" Content="＋  Add" Grid.Row="1" MinWidth="70" MinHeight="30" IsVisible="True" HorizontalAlignment="Right"></Button>
+					<DockPanel Grid.Row="1">
+						<ComboBox ItemsSource="{Binding OutputDeviceTypes}" Grid.Row="1" MinWidth="200" SelectedIndex="{Binding SelectedOutputDeviceToAdd}" HorizontalAlignment="Left" VerticalAlignment="Center"></ComboBox>
+						<Button Command="{Binding AddOutputDeviceCommand}" Content="＋  Add" Grid.Row="1" MinWidth="70" MinHeight="30" IsVisible="True" HorizontalAlignment="Right" VerticalAlignment="Center"></Button>
 					</DockPanel>
 
-					<Grid>
-						<Border Grid.Row="1" MinHeight="220" BorderBrush="Gray" BorderThickness="1" Background="#30000000">
+					<Grid Grid.Row="2">
+						<Border Grid.Row="1"  BorderBrush="Gray" BorderThickness="1" Background="#30000000">
 							<ScrollViewer>
-								<ListBox ItemsSource="{Binding OutputDevices}" SelectionMode="Single" SelectedItem="{Binding SelectedOutputDevice}">
+								<ListBox ItemsSource="{Binding OutputDevices}" Padding="0,5,0,0" SelectionMode="Single" SelectedItem="{Binding SelectedOutputDevice}">
 									<ListBox.ItemTemplate>
 										<DataTemplate>
-											<local:OutputDevicePreviewView></local:OutputDevicePreviewView>
+											<local:OutputDevicePreviewView Margin="0,-8,0,-8"></local:OutputDevicePreviewView>
 										</DataTemplate>
 									</ListBox.ItemTemplate>
 								</ListBox>
@@ -105,8 +105,8 @@
 						<TextBlock IsVisible="{Binding !HasOutputDevices}" Text="No output devices. Please add one." VerticalAlignment="Center" HorizontalAlignment="Center"/>
 					</Grid>
 
-					<Grid IsVisible="{Binding !AdvancedOutputSettingsAreOpen}" Grid.Row="2" VerticalAlignment="Top">
-						<ContentControl MinHeight="200" Content="{Binding SelectedOutputDevice}">
+					<Grid IsVisible="{Binding !AdvancedOutputSettingsAreOpen}" Grid.Row="3" Margin="0,10,0,0">
+						<ContentControl Content="{Binding SelectedOutputDevice}">
 							<ContentControl.DataTemplates>
 								<DataTemplate DataType="vm:HandyOnlineApiViewModel">
 									<local:HandyOnlineApiSettingsView></local:HandyOnlineApiSettingsView>
@@ -121,17 +121,19 @@
 							.
 						</ContentControl>
 					</Grid>
-					<Grid IsVisible="{Binding AdvancedOutputSettingsIsVisible}" Grid.Row="2">
-						<local:AdvancedOutputSettingsView DataContext="{Binding SelectedOutputDevice}"/>
+
+					<Grid Grid.Row="4" IsVisible="{Binding SelectedOutputDevice, Converter={x:Static ObjectConverters.IsNotNull}}"  VerticalAlignment="Bottom">
+						<local:AdvancedOutputSettingsView DataContext="{Binding SelectedOutputDevice}"></local:AdvancedOutputSettingsView>
 					</Grid>
+					
 				
 					<!--
 						<lvc:CartesianChart x:Name="outputPositionChart" TooltipPosition="Hidden" BorderBrush="{StaticResource PrimaryBackground}" BorderThickness="1" Height="70" Series="{Binding OutputPositionSeries}" XAxes="{Binding PositionChartXAxes}" AnimationsSpeed="0" ZoomMode="None">
 						</lvc:CartesianChart>
 					-->
-				</StackPanel>
-			
-				<Button Command="{Binding ToggleAdvancedOutputSettingsCommand}" IsVisible="{Binding SelectedOutputDevice, Converter={x:Static ObjectConverters.IsNotNull}}" Content="Toggle Advanced Settings" Grid.Row="2" MinWidth="70" MinHeight="30" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="10"></Button>
+				</Grid>
+
+				<!--<Button Command="{Binding ToggleAdvancedOutputSettingsCommand}" IsVisible="{Binding SelectedOutputDevice, Converter={x:Static ObjectConverters.IsNotNull}}" Content="Toggle Advanced Settings" Grid.Row="2" MinWidth="70" MinHeight="30" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="10"></Button>-->
 			</Grid>
 		</Border>
 

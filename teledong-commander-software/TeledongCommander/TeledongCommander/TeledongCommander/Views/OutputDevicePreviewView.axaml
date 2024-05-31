@@ -3,7 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:TeledongCommander.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="50" Height="50"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="45" Height="45"
 			 x:DataType="vm:OutputDeviceViewModel"
              x:Class="TeledongCommander.OutputDevicePreviewView">
 	
@@ -12,10 +12,10 @@
 		<vm:OutputDeviceViewModel />
 	</Design.DataContext>-->
 	
-  <Border BorderBrush="#90FFFFFF" Padding="8,2,8,2" BorderThickness="1">
+  <Border BorderBrush="#90FFFFFF" Padding="8,3,8,3" BorderThickness="1">
 	  <Grid>
 		  <TextBlock Text="{Binding Title}"></TextBlock>
-		  <TextBlock Text="{Binding SecondaryTitle}" VerticalAlignment="Bottom" HorizontalAlignment="Left" ></TextBlock>
+		  <TextBlock Text="{Binding SecondaryTitle}" Opacity="0.6" VerticalAlignment="Bottom" HorizontalAlignment="Left" ></TextBlock>
 
 		  <TextBlock Text="{Binding StatusLabelSymbol}" Foreground="{Binding StatusLabelBrush}" FontSize="30" HorizontalAlignment="Right" VerticalAlignment="Center"></TextBlock>
 	  </Grid>
