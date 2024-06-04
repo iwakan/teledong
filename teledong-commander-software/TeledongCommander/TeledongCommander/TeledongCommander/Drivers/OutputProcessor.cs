@@ -20,6 +20,8 @@ namespace TeledongCommander
         public TimeSpan FilterTime { get; set; } = TimeSpan.FromMilliseconds(0);
         public bool PeakMotionMode { get; set; } = true;
 
+        public event EventHandler<OutputEventArgs>? Output;
+
         readonly List<StrokerPoint> inputPointBuffer = new List<StrokerPoint>();
         readonly Queue<StrokerPoint> outputPointBuffer = new Queue<StrokerPoint>();
         readonly DateTime referenceTime = DateTime.Now;
@@ -27,8 +29,6 @@ namespace TeledongCommander
         DateTime lastWriteTimePeak = DateTime.Now;
         double previousPosition = 0.9;
         StrokeDirection currentDirection = StrokeDirection.None;
-
-        public event EventHandler<OutputEventArgs>? Output;
 
         /// <summary>
         /// This will send the current position (from 0 to 1) to processing, and trigger the Output event if a new position is ready to be sent to the device.

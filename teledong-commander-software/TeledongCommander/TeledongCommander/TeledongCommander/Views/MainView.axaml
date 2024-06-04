@@ -47,7 +47,7 @@
 					<RadioButton GroupName="InputDevice" Content="Mouse" Command="{Binding SetInputDeviceCommand}" CommandParameter="1" ToolTip.Tip="Gets movement from the user's computer mouse." IsChecked="False"></RadioButton>
 				</StackPanel>
 
-				<Button Content="Connect" Command="{Binding ConnectInputDeviceCommand}" IsVisible="{Binding InputDeviceIsTeledong}" IsEnabled="{Binding CanClickConnectInputDeviceButton}" Margin="0,0,0,20" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom"></Button>
+				<Button Content="Connect" Background="Green" Command="{Binding ConnectInputDeviceCommand}" IsVisible="{Binding InputDeviceIsTeledong}" IsEnabled="{Binding CanClickConnectInputDeviceButton}" Margin="0,0,0,20" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom"></Button>
 				
 				<Separator Grid.Row="1" Margin="0,0,0,5" VerticalAlignment="Bottom"/>
 
@@ -61,15 +61,15 @@
 					<lvc:CartesianChart x:Name="inputPositionChart" TooltipPosition="Hidden" BorderBrush="{StaticResource PrimaryBackground}" BorderThickness="1" Height="70" Series="{Binding InputPositionSeries}" XAxes="{Binding PositionChartXAxes}" AnimationsSpeed="0" ZoomMode="None">
 					</lvc:CartesianChart>
 
+					<CheckBox Content="Keep current position on release" IsChecked="{Binding TeledongKeepPositionOnRelease}" IsVisible="{Binding InputDeviceIsTeledong}" ToolTip.Tip="When you let go of the Teledong mid-stroke, this option decides whether to hold the current position, or reset to the top position. NB: If this is enabled, it introduces a minor extra latency (50-100ms)."/>
+
 					<!--<ToggleSwitch Margin="0,20,0,0" Content="Sensor mode" IsChecked="{Binding TeledongSunlightMode}" OnContent="Sunlight" OffContent="Indoor lighting" IsVisible="{Binding InputDeviceIsTeledong}"></ToggleSwitch>-->
 					<StackPanel Orientation="Horizontal" IsVisible="{Binding InputDeviceIsTeledong}" Margin="0,10,0,0" Spacing="20">
 						<Button Command="{Binding CalibrateTeledongCommand}" Content="Calibrate"></Button>
 						<TextBlock Text="⚠️ Bad sensor values detected, Teledong should be recalibrated." IsVisible="{Binding TeledongHasBadCalibration}" VerticalAlignment="Center" TextWrapping="Wrap" Width="190"></TextBlock>
 					</StackPanel>
 					
-					<CheckBox Content="Keep current position on release" IsChecked="{Binding TeledongKeepPositionOnRelease}" IsVisible="{Binding InputDeviceIsTeledong}" ToolTip.Tip="When you let go of the Teledong mid-stroke, this option decides whether to hold the current position, or reset to the top position. NB: If this is enabled, it introduces a minor extra latency (50-100ms)."/>
-					
-					
+					<TextBlock Text="{Binding InputDeviceError}" Foreground="Orange" TextWrapping="Wrap"/>
 					
 				</StackPanel>
 

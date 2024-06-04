@@ -17,6 +17,8 @@ public partial class HandyOnlineApiViewModel : OutputDeviceViewModel
 
     public HandyOnlineApiViewModel(HandyStreamApi outputDevice) : base(outputDevice)
     {
+        HideFilterStrengthSetting = true;
+
         Title = "The Handy Connection Key";
         SecondaryTitle = outputDevice.ConnectionKey;
     }

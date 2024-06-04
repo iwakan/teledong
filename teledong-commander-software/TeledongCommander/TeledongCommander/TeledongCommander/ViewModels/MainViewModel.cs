@@ -75,6 +75,8 @@ public partial class MainViewModel : ViewModelBase
     public bool InputDeviceIsTeledong => InputDevice == InputDevices.Teledong;
     public bool InputDeviceIsMouse => InputDevice == InputDevices.Mouse;
 
+    public bool TeledongIsConnected => InputDeviceIsTeledong && teledongApi.State != TeledongState.NotConnected;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasOutputDevices))]
     private ObservableCollection<OutputDeviceViewModel> _outputDevices = new();
@@ -93,7 +95,7 @@ public partial class MainViewModel : ViewModelBase
     private ISeries[] _inputPositionSeries = new ISeries[]
     {
         // Todo move this to view, viewmodel should not decide appearance
-        new LineSeries<ObservablePoint> 
+        new LineSeries<ObservablePoint>
         {
             Values = new List<ObservablePoint>(),
             Fill = null,
@@ -129,6 +131,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PositionChartXAxes))]
     private double? _positionChartMaxX;
+
+    [ObservableProperty]
+    private string? _inputDeviceError;
 
     const string settingsFolderName = "TeledongCommander";
 
@@ -183,6 +188,8 @@ public partial class MainViewModel : ViewModelBase
                 InputDeviceStatusText = "ERROR";
 
             TeledongHasBadCalibration = teledongApi.BadCalibrationWarning;
+
+
         }
         else if (InputDeviceIsMouse)
         {
@@ -345,10 +352,16 @@ public partial class MainViewModel : ViewModelBase
                     TeledongSunlightMode = teledongApi.IsSunlightMode;
 
                 TeledongFirmwareVersion = teledongApi.GetFirmwareVersion();
+                InputDeviceError = null;
             }
             else
+            { 
                 Debug.WriteLine("Couldn't connect to Teledong");
+                InputDeviceError = "Couldn't connect to Teledong.";
+            }
         }
+        else
+            InputDeviceError = null;
     }
 
     [RelayCommand]
@@ -428,6 +441,7 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnInputDeviceChanged(InputDevices value)
     {
+        InputDeviceError = null;
         DisconnectInputDevice();
         UpdateUiStatus();
     }
@@ -456,7 +470,10 @@ public partial class MainViewModel : ViewModelBase
     private async Task CalibrateTeledong()
     {
         if (teledongApi == null || teledongApi.State == TeledongState.NotConnected || isCalibrating)
+        {
+            InputDeviceError = "Teledong must be connected before calibrating.";
             return;
+        }
 
         isCalibrating = true;
         try
@@ -469,8 +486,10 @@ public partial class MainViewModel : ViewModelBase
         catch (Exception ex)
         {
             Debug.Write("Failed to calibrate teledong: " + ex.Message);
+            InputDeviceError = "Failure during Teledong calibration.";
         }
         isCalibrating = false;
+        InputDeviceError = null;
     }
 
     private void DisconnectOutputDevice()

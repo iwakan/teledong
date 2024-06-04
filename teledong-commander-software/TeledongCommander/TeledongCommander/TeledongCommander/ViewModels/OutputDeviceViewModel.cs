@@ -12,10 +12,10 @@ namespace TeledongCommander.ViewModels;
 public partial class OutputDeviceViewModel : ViewModelBase
 {
     [ObservableProperty]
-    private string _title = "title";
+    private string _title = "[Title]";
 
     [ObservableProperty]
-    private string? _secondaryTitle = "sec. title";
+    private string? _secondaryTitle = "[Secondary title]";
 
     [ObservableProperty]
     private string _statusLabelSymbol = "☐";//☐🗹
@@ -36,9 +36,16 @@ public partial class OutputDeviceViewModel : ViewModelBase
     private double _filterStrength = 0.0;
 
     [ObservableProperty]
-    private double _filterTimeMilliseconds = 0;
+    [NotifyPropertyChangedFor(nameof(FilterStrengthSettingIsVisible))]
+    private bool _hideFilterStrengthSetting = false;
 
     [ObservableProperty]
+    private double _filterTimeMilliseconds = 0;
+
+    public bool FilterStrengthSettingIsVisible => !HideFilterStrengthSetting && !PeakMotionMode;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FilterStrengthSettingIsVisible))]
     private bool _peakMotionMode = false;
 
     public OutputDevice OutputDevice { get; private set; }

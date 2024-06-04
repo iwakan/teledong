@@ -21,6 +21,8 @@ public partial class ButtplugApiViewModel : OutputDeviceViewModel
 
     public ButtplugApiViewModel(ButtplugApi outputDevice) : base(outputDevice)
     {
+        HideFilterStrengthSetting = true;
+
         Title = "Local Server";
         SecondaryTitle = null;
     }

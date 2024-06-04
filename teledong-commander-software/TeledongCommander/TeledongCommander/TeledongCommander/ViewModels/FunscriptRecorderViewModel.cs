@@ -36,7 +36,7 @@ public partial class FunscriptRecorderViewModel : OutputDeviceViewModel
         OutputPath = funscriptRecorder.OutputPath;
         
         timer = new DispatcherTimer();
-        timer.Interval = TimeSpan.FromSeconds(0.5);
+        timer.Interval = TimeSpan.FromSeconds(0.261);
         timer.Tick += Timer_Tick;
         timer.Start();
     }
