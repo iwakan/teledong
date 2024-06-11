@@ -34,7 +34,7 @@ public partial class MainViewModel : ViewModelBase
     private bool _teledongSunlightMode = false;
 
     [ObservableProperty]
-    private bool _teledongKeepPositionOnRelease = true;
+    private bool _teledongKeepPositionOnRelease = false;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DebugMode))]
@@ -219,7 +219,8 @@ public partial class MainViewModel : ViewModelBase
             if (InputDeviceIsTeledong && teledongApi != null && (teledongApi?.State != TeledongState.NotConnected))
             {
                 position = teledongApi?.GetPosition() ?? 1.0;
-                SendPointToInputPositionChart(position);
+                if (!skipRead)
+                    SendPointToInputPositionChart(position);
 
                 if (DebugMode)
                 {
@@ -247,10 +248,12 @@ public partial class MainViewModel : ViewModelBase
             }
             else if (InputDeviceIsMouse)
             {
-                SendPointToInputPositionChart(position);
+                if (!skipRead)
+                    SendPointToInputPositionChart(position);
             }
 
             // Send raw position to output. The output device processor classes handles filtering/latency etc.
+            // We skip doing this every other cycle, because the Teledong timer is designed to work at 50ms intervals, but we only need to output every 100ms or so.
             if (!skipRead)
             {
                 foreach (var outputDevice in OutputDevices)
@@ -448,7 +451,7 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnReadIntervalChanged(double value)
     {
-        sensorReadTimer.Interval = value;
+        sensorReadTimer.Interval = value / 2.0;
     }
 
     partial void OnTeledongSunlightModeChanged(bool value)
@@ -459,6 +462,20 @@ public partial class MainViewModel : ViewModelBase
     partial void OnTeledongKeepPositionOnReleaseChanged(bool value)
     {
         teledongApi.KeepPositionAtRelease = value;
+    }
+    [RelayCommand]
+    protected void IncreaseReadInterval()
+    {
+        ReadInterval += 10;
+    }
+
+    [RelayCommand]
+    protected void DecreaseReadInterval()
+    {
+        if (ReadInterval > 30)
+            ReadInterval -= 10;
+        else
+            ReadInterval = 0;
     }
 
     private void DisconnectInputDevice()
@@ -524,7 +541,7 @@ public partial class MainViewModel : ViewModelBase
                     {
                         if (node.HasAttribute("SampleRate"))
                         {
-                            sensorReadTimer.Interval = int.Max(int.Parse(node.GetAttribute("SampleRate")) / 2, 10);
+                            ReadInterval = int.Max(int.Parse(node.GetAttribute("SampleRate")), 20);
                         }
                     }
                     else if (node.Name == "OutputDevices")
@@ -591,7 +608,7 @@ public partial class MainViewModel : ViewModelBase
             settings.AppendChild(rootElement);
 
             var inputSettingsElement = settings.CreateElement("InputSettings");
-            inputSettingsElement.SetAttribute("SampleRate", (sensorReadTimer.Interval * 2).ToString("N0"));
+            inputSettingsElement.SetAttribute("SampleRate", ReadInterval.ToString("N0"));
             rootElement.AppendChild(inputSettingsElement);
 
             var outputDevicesElement = settings.CreateElement("OutputDevices");

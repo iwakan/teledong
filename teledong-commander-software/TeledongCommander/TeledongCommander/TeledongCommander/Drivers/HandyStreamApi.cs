@@ -1,4 +1,6 @@
-﻿using System;
+﻿using LaborAI.EventSourceClient.DTOs;
+using LaborAI.EventSourceClient;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -7,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
+using System.ComponentModel;
 
 namespace TeledongCommander;
 
@@ -41,17 +44,19 @@ public class HandyStreamApi : OutputDevice
     DateTime lastBufferPushTime = DateTime.Now;
     int streamId = 100;
     string ApiKey = "";
+    string? apiAuthToken = null;
     bool isPlaying = false;
     bool hasInitedStart = false;
     int tailPointStreamIndex = 0;
-    bool hasAuthed = false;
     int millisecondsDiscrepancy = 0;
     bool hasAdjustedDiscrepancyTime = false;
     int millisecondsOffset => hasAdjustedDiscrepancyTime ? (int)Processor.FilterTime.TotalMilliseconds : 100;
     bool flushNext = false;
-    int alternatePointNoise = 0;
+    bool alternatePointNoise = false;
     int numberOfBatchedPoints => (int)Math.Ceiling(Processor.FilterTime.TotalMilliseconds / 400.0);
     int[] previousPoints = { 0, 100, 2 };
+    int previousPoint = -1;
+    BackgroundWorker? sseWorker = null;
 
     public HandyStreamApi() : base()
     {
@@ -99,7 +104,8 @@ public class HandyStreamApi : OutputDevice
                 do
                 {
                     var point = buffer.Dequeue();
-                    var x = Math.Clamp((int)Math.Round(point.Position * 100) + alternatePointNoise, 0, 100);
+                    var x = Math.Clamp((int)Math.Round(point.Position * 100) + (alternatePointNoise ? 1 : 0), 0, 100);
+
                     /*if (previousPoints[2] > previousPoints[1] && previousPoints[1] == previousPoints[0] && previousPoints[0] == x)
                     {
                         x += 1;
@@ -115,67 +121,75 @@ public class HandyStreamApi : OutputDevice
                     //if (firstPointTime == -10000)
                     //    firstPointTime = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset;
 
-                    points.Add(new
+                    //if (previousPoint != x)
                     {
-                        t = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset - millisecondsDiscrepancy,
-                        x = x
-                    });
-                    tailPointStreamIndex++;
-                    alternatePointNoise *= -1;
+                        points.Add(new
+                        {
+                            t = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset - millisecondsDiscrepancy,
+                            x = x
+                        });
+                        tailPointStreamIndex++;
+                        //alternatePointNoise = !alternatePointNoise;
+                        previousPoint = x;
+                    }
                 }
                 while (buffer.Any());
 
-                var benchmarkTime = DateTime.Now;
-                using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/add"))
+                //if (points.Count > 0)
                 {
-                    request.Headers.TryAddWithoutValidation("accept", "application/json");
-                    request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
-                    request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
-
-                    if (flushNext)
-                        tailPointStreamIndex = points.Count;
-
-                    var contentRaw = new
+                    var benchmarkTime = DateTime.Now;
+                    using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/add"))
                     {
-                        points = points.ToArray(),
-                        flush = flushNext,
-                        tailPointStreamIndex = tailPointStreamIndex,
-                    };
-                    request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
-                    request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                        request.Headers.TryAddWithoutValidation("accept", "application/json");
+                        request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
+                        //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                        request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
 
-                    try
-                    {
-                        Debug.WriteLine("Putting points: " + points.Count + " time: " + startTime.ToLongTimeString());
-                        var response = await httpClient.SendAsync(request);
+                        if (flushNext)
+                            tailPointStreamIndex = points.Count;
 
-                        Debug.WriteLine("API latency: " + (DateTime.Now - benchmarkTime).TotalMilliseconds);
-
-                        if (response != null && response.IsSuccessStatusCode)
+                        var contentRaw = new
                         {
-                            var responseText = await response.Content.ReadAsStringAsync();
-                            var responseJson = System.Text.Json.JsonSerializer.Deserialize<PutPointsApiResponse>(responseText);
-                            if (responseJson != null && responseJson.result != null)
+                            points = points.ToArray(),
+                            flush = flushNext,
+                            tailPointStreamIndex = tailPointStreamIndex,
+                        };
+                        request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
+                        request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+
+                        try
+                        {
+                            //Debug.WriteLine("Putting points: " + points.Count + " time: " + startTime.ToLongTimeString());
+                            var response = await httpClient.SendAsync(request);
+
+                            Debug.WriteLine("API roundtrip latency: " + (DateTime.Now - benchmarkTime).TotalMilliseconds);
+
+                            if (response != null && response.IsSuccessStatusCode)
                             {
-                                //millisecondsDiscrepancy = (responseJson.result.current_time - firstPointTime);
-                                //millisecondsOffset += millisecondsDiscrepancy;
-                                if (responseJson.result.points + 100 > responseJson.result.max_points)
-                                    flushNext = true;
-                                if (isPlaying && !hasAdjustedDiscrepancyTime)
+                                var responseText = await response.Content.ReadAsStringAsync();
+                                var responseJson = System.Text.Json.JsonSerializer.Deserialize<PutPointsApiResponse>(responseText);
+                                if (responseJson != null && responseJson.result != null)
                                 {
-                                    millisecondsDiscrepancy = responseJson.result.last_point_time - responseJson.result.current_time;// - 1000;
-                                    Debug.WriteLine("Timing discrepancy: " + millisecondsDiscrepancy);
-                                    hasAdjustedDiscrepancyTime = true;
+                                    //millisecondsDiscrepancy = (responseJson.result.current_time - firstPointTime);
+                                    //millisecondsOffset += millisecondsDiscrepancy;
+                                    //if (responseJson.result.points + 100 > responseJson.result.max_points)
+                                    //    flushNext = true;
+                                    if (isPlaying && !hasAdjustedDiscrepancyTime)
+                                    {
+                                        millisecondsDiscrepancy = responseJson.result.last_point_time - responseJson.result.current_time;// - 1000;
+                                        Debug.WriteLine("Timing discrepancy: " + millisecondsDiscrepancy);
+                                        hasAdjustedDiscrepancyTime = true;
+                                    }
                                 }
+                                Debug.WriteLine("Point put response: " + responseJson);
                             }
-                            Debug.WriteLine("Point put response: " + responseText);
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine("Failed: " + ex.Message);
-                        errorMessage = "Failed to send positions";
-                        TriggerStatusChanged();
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine("Failed: " + ex.Message);
+                            errorMessage = "Failed to send positions";
+                            TriggerStatusChanged();
+                        }
                     }
                 }
 
@@ -186,7 +200,8 @@ public class HandyStreamApi : OutputDevice
                     {
                         request.Headers.TryAddWithoutValidation("accept", "application/json");
                         request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
-                        request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                        //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                        request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
 
                         var contentRaw = new
                         {
@@ -214,7 +229,7 @@ public class HandyStreamApi : OutputDevice
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("Failed to start playing: " + ex.ToString());
+                Debug.WriteLine("Failed to send/process points to The Handy: " + ex.ToString());
             }
 
             flushNext = false;
@@ -240,10 +255,10 @@ public class HandyStreamApi : OutputDevice
 
         try
         {
-            if (!hasAuthed)
+            if (string.IsNullOrEmpty(apiAuthToken))
             {
                 Debug.WriteLine("Authenticating...");
-                using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "auth/token/issue"))
+                using (var request = new HttpRequestMessage(new HttpMethod("GET"), baseApiUrl + "auth/token/issue"))
                 {
                     request.Headers.TryAddWithoutValidation("accept", "application/json");
                     //request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
@@ -258,10 +273,16 @@ public class HandyStreamApi : OutputDevice
 
                     var response = await httpClient.SendAsync(request);
 
-                    if (response != null && response.IsSuccessStatusCode)
+                    if (response != null)
                     {
-                        Debug.WriteLine("Authentication response: " + await response.Content.ReadAsStringAsync());
-                        hasAuthed = true;
+                        var responseText = await response.Content.ReadAsStringAsync();
+                        var responseJson = System.Text.Json.JsonSerializer.Deserialize<AuthenticationApiResponse>(responseText);
+                        if (responseJson != null)
+                        {
+                            Debug.WriteLine("Authentication response: " + responseText);
+                            //if (response.IsSuccessStatusCode)
+                            apiAuthToken = responseJson.token;
+                        }
                     }
                 }
             }
@@ -273,7 +294,8 @@ public class HandyStreamApi : OutputDevice
             {
                 request.Headers.TryAddWithoutValidation("accept", "application/json");
                 request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
-                request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
 
                 var contentRaw = new
                 {
@@ -290,6 +312,13 @@ public class HandyStreamApi : OutputDevice
                     Debug.WriteLine("Stream setup command response: " + await response.Content.ReadAsStringAsync());
                 }
             }
+
+            if (sseWorker == null)
+            {
+                sseWorker = new BackgroundWorker();
+                sseWorker.DoWork += SseWorker_DoWork;
+                sseWorker.RunWorkerAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -299,6 +328,36 @@ public class HandyStreamApi : OutputDevice
         {
             criticalMessageLock.ReleaseMutex();
         }
+    }
+
+    private void SseWorker_DoWork(object? sender, DoWorkEventArgs e)
+    {
+        var eventSourceClient = new EventSourceClient(baseApiUrl + "sse", new HttpClient(), null, new EventSourceExtraOptions()
+        {
+            Headers = new Dictionary<string, string>()
+            {
+                ["X-Connection-Key"] = ConnectionKey,
+                //["X-Api-Key"] = ApiKey
+                ["Authorization"] = "Bearer " + apiAuthToken
+            }
+        });
+
+        eventSourceClient.EventReceived += (sender, e) =>
+        {
+            Debug.WriteLine($"SSE Received Event: {e.Type}");
+            Debug.WriteLine($"SSE Data: {e.Data}");
+            Debug.WriteLine($"SSE ID: {e.Id}");
+            if (e.Retry.HasValue)
+            {
+                Debug.WriteLine($"SSE Retry: {e.Retry.Value}");
+            }
+        };
+
+        eventSourceClient.StateChanged += (sender, e) => Debug.WriteLine($"SSE State Changed: {e.ReadyState}");
+
+        eventSourceClient.Stream().Wait();
+
+        sseWorker = null;
     }
 
     public async Task<int> GetMode()
@@ -314,7 +373,8 @@ public class HandyStreamApi : OutputDevice
                 {
                     request.Headers.TryAddWithoutValidation("accept", "application/json");
                     request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
-                    request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                    //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                    request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
 
                     var response = await httpClient.SendAsync(request);
                 }
@@ -322,8 +382,8 @@ public class HandyStreamApi : OutputDevice
             return 0;
         }
         catch
-        { 
-            return 0; 
+        {
+            return 0;
         }
         finally
         {
@@ -342,7 +402,8 @@ public class HandyStreamApi : OutputDevice
             {
                 request.Headers.TryAddWithoutValidation("accept", "application/json");
                 request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
-                request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
 
                 var contentRaw = new
                 {
@@ -383,7 +444,8 @@ public class HandyStreamApi : OutputDevice
             {
                 request.Headers.TryAddWithoutValidation("accept", "application/json");
                 request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
-                request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
 
                 return httpClient.SendAsync(request);
             }
@@ -403,6 +465,11 @@ public class HandyStreamApi : OutputDevice
     protected class PutPointsApiResponse
     {
         public PutPointsApiResponseResult? result { get; set; }
+
+        public override string ToString()
+        {
+            return result?.ToString() ?? "Empty";
+        }
     }
 
     protected class PutPointsApiResponseResult
@@ -414,5 +481,19 @@ public class HandyStreamApi : OutputDevice
         public int first_point_time { get; set; }
         public int last_point_time { get; set; }
         public int tail_point_stream_index { get; set; }
+
+        public override string ToString()
+        {
+            return $"points={points}, current_point={current_point}, current_time={current_time}, last_point_time={last_point_time}, tail_point_stream_index={tail_point_stream_index}";
+        }
     }
+
+
+    public class AuthenticationApiResponse
+    {
+        public string token_id { get; set; }
+        public string token { get; set; }
+        public string renew { get; set; }
+    }
+
 }

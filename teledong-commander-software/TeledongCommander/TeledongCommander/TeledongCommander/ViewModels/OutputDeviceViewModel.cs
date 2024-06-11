@@ -1,4 +1,5 @@
 ﻿using Avalonia.Media;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
@@ -116,8 +117,7 @@ public partial class OutputDeviceViewModel : ViewModelBase
 
         if (OutputDevice.HasError)
         {
-            StatusLabelBrush = new SolidColorBrush(Colors.
-                Orange);
+            StatusLabelBrush = new SolidColorBrush(Colors.Orange);
             StatusLabelSymbol = "⚠";
         }
         else if (OutputDevice.IsStarted)
