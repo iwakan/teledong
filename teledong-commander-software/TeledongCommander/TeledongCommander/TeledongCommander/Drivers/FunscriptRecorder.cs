@@ -51,6 +51,7 @@ namespace TeledongCommander
 
         public override async Task Stop()
         {
+            ErrorMessage = null;
             await StopRecording();
         }
 

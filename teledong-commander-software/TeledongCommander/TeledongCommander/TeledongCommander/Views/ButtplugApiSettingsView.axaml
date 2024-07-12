@@ -22,6 +22,8 @@
 			<ScrollViewer>
 				<ListBox ItemsSource="{Binding Devices}" SelectedIndex="{Binding SelectedDevice}" MinHeight="120" SelectionMode="Single"></ListBox>
 			</ScrollViewer>
+
+			<TextBlock Text="{Binding Error}" Foreground="Orange" TextWrapping="Wrap"></TextBlock>
 			
 		</StackPanel>
 	</Grid>

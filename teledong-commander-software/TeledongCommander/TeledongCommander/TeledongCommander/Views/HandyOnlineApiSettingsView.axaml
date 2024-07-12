@@ -23,6 +23,7 @@
 				<TextBlock Text="Connection Key" VerticalAlignment="Center"></TextBlock>
 				<TextBox Text="{Binding TheHandyConnectionKey}" Margin="10,0,10,0"></TextBox>
 			</DockPanel>
+			<TextBlock Text="{Binding Error}" Foreground="Orange" TextWrapping="Wrap"></TextBlock>
 		</StackPanel>
 	</Grid>
 </UserControl>

@@ -172,15 +172,15 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:Teledong Commander"
-        "ProductCode" = "8:{A327EB6B-4AC6-407F-B038-40B57298E37B}"
-        "PackageCode" = "8:{74956130-8759-410F-8B32-700988E84795}"
+        "ProductCode" = "8:{DE1066EC-7D7D-403D-9AE1-7E46C77EE736}"
+        "PackageCode" = "8:{240563D1-495B-4BCB-9DA4-C848C635E12A}"
         "UpgradeCode" = "8:{FBFDEDF8-3913-447C-8172-19CEA7A47B1E}"
         "AspNetVersion" = "8:2.0.50727.0"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:FALSE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:TRUE"
-        "ProductVersion" = "8:0.3.0"
+        "ProductVersion" = "8:0.4.0"
         "Manufacturer" = "8:Teledong"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:https://teledong.com"
@@ -736,7 +736,7 @@
             }
             "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_BAC0014A49274C33868BA7DF0E70EC5B"
             {
-            "SourcePath" = "8:..\\TeledongCommander\\TeledongCommander.Desktop\\obj\\Debug\\net8.0\\apphost.exe"
+            "SourcePath" = "8:..\\TeledongCommander\\TeledongCommander.Desktop\\obj\\Release\\net8.0\\apphost.exe"
             "TargetName" = "8:"
             "Tag" = "8:"
             "Folder" = "8:_871A99F76C704DCB8BC07902AA6A4F1A"

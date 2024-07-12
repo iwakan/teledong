@@ -86,6 +86,7 @@ public class ButtplugApi : OutputDevice
             {
                 await client.StopAllDevicesAsync();
                 await client.DisconnectAsync();
+                ErrorMessage = null;
                 TriggerStatusChanged();
             }
         }

@@ -13,7 +13,6 @@ namespace TeledongCommander;
 public class HandyHdspApi : OutputDevice
 {
     public override bool IsStarted => successfullyConnected;
-    public override bool HasError => !string.IsNullOrEmpty(errorMessage);
 
     public override string StatusText
     {
@@ -30,7 +29,6 @@ public class HandyHdspApi : OutputDevice
     public string ConnectionKey { get { return connectionKey; } set { if (connectionKey != value) { connectionKey = value; TriggerStatusChanged(); } } }
 
     const string baseApiUrl = "https://www.handyfeeling.com/api/handy/v2/";
-    string? errorMessage = null;
     HttpClient httpClient;
     bool isClosed = false;
     bool successfullyConnected = false;
@@ -98,7 +96,7 @@ public class HandyHdspApi : OutputDevice
             catch (Exception ex)
             {
                 Debug.WriteLine("Failed: " + ex.Message);
-                errorMessage = "Failed to send position";
+                ErrorMessage = "Failed to send position";
                 TriggerStatusChanged();
 
             }
@@ -164,12 +162,15 @@ public class HandyHdspApi : OutputDevice
                 if (response != null && response.IsSuccessStatusCode)
                 {
                     successfullyConnected = true;
+                    ErrorMessage = null;
+                    TriggerStatusChanged();
                 }
             }
         }
         catch (Exception ex)
         {
-            errorMessage = "Failed to connect.";
+            ErrorMessage = "Failed to connect.";
+            TriggerStatusChanged();
         }
         finally
         {

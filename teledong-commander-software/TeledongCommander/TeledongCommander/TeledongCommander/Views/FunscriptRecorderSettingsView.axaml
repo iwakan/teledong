@@ -27,6 +27,7 @@
 				<TextBlock Margin="5,0,0,0" VerticalAlignment="Center" Text="{Binding FunscriptOutputPathAbbreviated}"></TextBlock>
 			</DockPanel>
 
+			<TextBlock Text="{Binding Error}" Foreground="Orange" TextWrapping="Wrap"></TextBlock>
 			
 		</StackPanel>
 	</Grid>

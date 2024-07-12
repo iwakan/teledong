@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Avalonia.Threading;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -10,17 +11,19 @@ namespace TeledongCommander
     public abstract class OutputDevice
     {
         public virtual bool IsStarted { get; private set; } = false;
-        public virtual bool HasError { get; private set; } = false;
+        public virtual bool HasError => !string.IsNullOrEmpty(ErrorMessage);
         public virtual string StatusText { get; private set; } = "";
 
+        public string? ErrorMessage = null;
+
         public OutputProcessor Processor { get; protected set; }
+
+        public event EventHandler? StatusChanged;
 
         public OutputDevice() 
         {
             Processor = new OutputProcessor();
         }
-
-        public event EventHandler? StatusChanged;
 
         virtual public Task Start() => Task.CompletedTask;
         virtual public Task Stop() => Task.CompletedTask;
@@ -34,7 +37,11 @@ namespace TeledongCommander
 
         protected void TriggerStatusChanged()
         {
-            StatusChanged?.Invoke(this, EventArgs.Empty);
+            // This depends on Avalonia even though the model shouldn't, but I don't know enough about MVVM to care to deal with this yet.
+            Dispatcher.UIThread.Invoke(new Action(() =>
+            {
+                StatusChanged?.Invoke(this, EventArgs.Empty);
+            }));
         }
     }
 }

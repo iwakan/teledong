@@ -49,6 +49,9 @@ public partial class OutputDeviceViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(FilterStrengthSettingIsVisible))]
     private bool _peakMotionMode = false;
 
+    [ObservableProperty]
+    private string? _error;
+
     public OutputDevice OutputDevice { get; private set; }
     public virtual string SettingsId { get; } = "";
 
@@ -114,6 +117,7 @@ public partial class OutputDeviceViewModel : ViewModelBase
     protected virtual void OutputDevice_StatusChanged(object? sender, EventArgs e)
     {
         IsStarted = OutputDevice.IsStarted;
+        Error = OutputDevice.ErrorMessage;
 
         if (OutputDevice.HasError)
         {

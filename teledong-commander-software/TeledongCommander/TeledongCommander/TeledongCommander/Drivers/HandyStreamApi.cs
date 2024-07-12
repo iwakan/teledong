@@ -10,13 +10,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 using System.ComponentModel;
+using System.Text.Json;
 
 namespace TeledongCommander;
 
 public class HandyStreamApi : OutputDevice
 {
     public override bool IsStarted => successfullyConnected;
-    public override bool HasError => !string.IsNullOrEmpty(errorMessage);
 
     public override string StatusText
     {
@@ -33,7 +33,6 @@ public class HandyStreamApi : OutputDevice
     public string ConnectionKey { get { return connectionKey; } set { if (connectionKey != value) { connectionKey = value; TriggerStatusChanged(); } } }
 
     const string baseApiUrl = "https://www.handyfeeling.com/api/handy-rest/v3/";
-    string? errorMessage = null;
     HttpClient httpClient;
     bool isClosed = false;
     bool successfullyConnected = false;
@@ -55,7 +54,8 @@ public class HandyStreamApi : OutputDevice
     bool alternatePointNoise = false;
     int numberOfBatchedPoints => (int)Math.Ceiling(Processor.FilterTime.TotalMilliseconds / 400.0);
     int[] previousPoints = { 0, 100, 2 };
-    int previousPoint = -1;
+    DateTime previousPointTime = DateTime.Now;
+    //int previousPoint = -1;
     BackgroundWorker? sseWorker = null;
 
     public HandyStreamApi() : base()
@@ -121,8 +121,20 @@ public class HandyStreamApi : OutputDevice
                     //if (firstPointTime == -10000)
                     //    firstPointTime = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset;
 
-                    //if (previousPoint != x)
+                    if (previousPoints[0] != x)
                     {
+                        if (previousPoints[1] == previousPoints[0] && previousPoints[2] == previousPoints[1])
+                        {
+                            // Add previous identical point if there has been a pause in motion and points have been skipped. Otherwise the reaction is too slow when resuming motion.
+                            points.Add(new
+                            {
+                                t = (int)(previousPointTime - startTime).TotalMilliseconds + millisecondsOffset - millisecondsDiscrepancy,
+                                x = previousPoints[0]
+                            });
+                            tailPointStreamIndex++;
+                        }
+
+                        // Add current point
                         points.Add(new
                         {
                             t = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset - millisecondsDiscrepancy,
@@ -130,12 +142,16 @@ public class HandyStreamApi : OutputDevice
                         });
                         tailPointStreamIndex++;
                         //alternatePointNoise = !alternatePointNoise;
-                        previousPoint = x;
                     }
+
+                    previousPoints[2] = previousPoints[1];
+                    previousPoints[1] = previousPoints[0];
+                    previousPoints[0] = x;
+                    previousPointTime = point.Time;
                 }
                 while (buffer.Any());
 
-                //if (points.Count > 0)
+                if (points.Count > 0)
                 {
                     var benchmarkTime = DateTime.Now;
                     using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/add"))
@@ -168,26 +184,34 @@ public class HandyStreamApi : OutputDevice
                             {
                                 var responseText = await response.Content.ReadAsStringAsync();
                                 var responseJson = System.Text.Json.JsonSerializer.Deserialize<PutPointsApiResponse>(responseText);
-                                if (responseJson != null && responseJson.result != null)
+                                if (responseJson != null)
                                 {
-                                    //millisecondsDiscrepancy = (responseJson.result.current_time - firstPointTime);
-                                    //millisecondsOffset += millisecondsDiscrepancy;
-                                    //if (responseJson.result.points + 100 > responseJson.result.max_points)
-                                    //    flushNext = true;
-                                    if (isPlaying && !hasAdjustedDiscrepancyTime)
+                                    if (responseJson.result != null)
                                     {
-                                        millisecondsDiscrepancy = responseJson.result.last_point_time - responseJson.result.current_time;// - 1000;
-                                        Debug.WriteLine("Timing discrepancy: " + millisecondsDiscrepancy);
-                                        hasAdjustedDiscrepancyTime = true;
+                                        //millisecondsDiscrepancy = (responseJson.result.current_time - firstPointTime);
+                                        //millisecondsOffset += millisecondsDiscrepancy;
+                                        //if (responseJson.result.points + 100 > responseJson.result.max_points)
+                                        //    flushNext = true;
+                                        if (isPlaying && !hasAdjustedDiscrepancyTime)
+                                        {
+                                            millisecondsDiscrepancy = responseJson.result.last_point_time - responseJson.result.current_time;// - 1000;
+                                            Debug.WriteLine("Timing discrepancy: " + millisecondsDiscrepancy);
+                                            hasAdjustedDiscrepancyTime = true;
+                                        }
                                     }
+                                    else if (responseJson.error != null)
+                                    {
+                                        ErrorMessage = "Failed: " + responseJson.error.message;
+                                        TriggerStatusChanged();
+                                    }
+                                    Debug.WriteLine("Point put response: " + responseJson ?? "null");
                                 }
-                                Debug.WriteLine("Point put response: " + responseJson);
                             }
                         }
                         catch (Exception ex)
                         {
                             Debug.WriteLine("Failed: " + ex.Message);
-                            errorMessage = "Failed to send positions";
+                            ErrorMessage = "Failed to send positions";
                             TriggerStatusChanged();
                         }
                     }
@@ -308,8 +332,14 @@ public class HandyStreamApi : OutputDevice
 
                 if (response != null && response.IsSuccessStatusCode)
                 {
+                    var responseText = await response.Content.ReadAsStringAsync();
+                    Debug.WriteLine("Stream setup command response: " + responseText);
+
+                    // Todo check for error code
+
                     successfullyConnected = true;
-                    Debug.WriteLine("Stream setup command response: " + await response.Content.ReadAsStringAsync());
+                    ErrorMessage = null;
+                    TriggerStatusChanged();
                 }
             }
 
@@ -322,7 +352,8 @@ public class HandyStreamApi : OutputDevice
         }
         catch (Exception ex)
         {
-            errorMessage = "Failed to connect.";
+            ErrorMessage = "Failed to connect.";
+            TriggerStatusChanged();
         }
         finally
         {
@@ -422,7 +453,8 @@ public class HandyStreamApi : OutputDevice
         }
         catch (Exception ex)
         {
-            errorMessage = "Failed to connect.";
+            ErrorMessage = "Failed to connect.";
+            TriggerStatusChanged();
         }
         finally
         {
@@ -436,6 +468,7 @@ public class HandyStreamApi : OutputDevice
         isPlaying = false;
         hasInitedStart = false;
         httpClient.CancelPendingRequests();
+        ErrorMessage = null;
         TriggerStatusChanged();
 
         try
@@ -465,6 +498,7 @@ public class HandyStreamApi : OutputDevice
     protected class PutPointsApiResponse
     {
         public PutPointsApiResponseResult? result { get; set; }
+        public ErrorApiResponse? error { get; set; }
 
         public override string ToString()
         {
@@ -495,5 +529,15 @@ public class HandyStreamApi : OutputDevice
         public string token { get; set; }
         public string renew { get; set; }
     }
+
+
+    public class ErrorApiResponse
+    {
+        public int code { get; set; }
+        public string name { get; set; }
+        public string message { get; set; }
+        public bool connected { get; set; }
+    }
+
 
 }
