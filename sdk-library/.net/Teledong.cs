@@ -28,13 +28,14 @@ public class Teledong
     public bool BadCalibrationWarning { get; private set; } = false;
 
     /// <summary>
-    /// If true, then if the teledong thinks that the user completely let go of the device, it will report the most recent position rather than a positon of 0. 
+    /// If true, then if the Teledong thinks that the user completely let go of the device mid-stroke, it will report the most recent position instead of the default positon of 1. 
     /// Can avoid sudden jumps.
     /// </summary>
-    public bool KeepPositionAtRelease { get; set; } = true;
+    public bool KeepPositionAtRelease { get; set; } = false;
 
     /// <summary>
-    /// In sunlight mode, a sensor is considered obscured if it receives light rather than does not receive light. Should not be set manually, instead start a calibration which automatically chooses the best setting.
+    /// In sunlight mode, a sensor is considered obscured if it receives light rather than does not receive light. 
+    /// Should not be set manually, instead start a calibration which automatically chooses the best setting.
     /// </summary>
     public bool IsSunlightMode => sunlightMode;
 
@@ -94,7 +95,7 @@ public class Teledong
                         }
 
                         byte[] buffer = new byte[128];
-                        var setupPacket = new UsbSetupPacket(0x41, 2, 0x0002, 0, 0);
+                        var setupPacket = new UsbSetupPacket((byte)UsbRequestType.TypeVendor, 2, 0x0002, 0, 0);
                         if (device.ControlTransfer(ref setupPacket, buffer, 0, out int lengthTransferred) == false)
                             return false;
 
@@ -123,7 +124,7 @@ public class Teledong
 
     /// <summary>
     /// Gets the current position of the sensor array, normalized based on the current calibration.
-    /// Should be called at a regular interval, around every ~50ms, in order for all features such as KeepPositionAtRelease to work properly.
+    /// Should be called at a regular interval. It is recommended to use a timer interval around ~50ms, in order for some optional features such as KeepPositionAtRelease to work properly.
     /// </summary>
     /// <returns>Position, from 1.0 = Nothing on the dildo, to 0.0 = Dildo fully inserted.</returns>
     /// <exception cref="Exception"></exception>
@@ -214,7 +215,7 @@ public class Teledong
     /// <summary>
     /// If in sunlight mode, a sensor is considered obscured if it receives light rather than does not receive light. 
     /// This mode can be used in bright environments, when the optical sensors can not detect reflections well because they get saturated by the ambient light.
-    /// NB: Typically you do not want to set this manually, insted run a calibration routine which automatically detects whether or not to use sunlight mode.
+    /// NB: Typically you do NOT want to set this manually, insted run a calibration routine which automatically detects whether or not to use sunlight mode.
     /// </summary>
     /// <param name="enableSunlightMode">Sunlight mode</param>
     /// <param name="useMutex">Whether to block other Teledong USB transfers while the sensor readout happens. Default true.</param>
@@ -223,6 +224,7 @@ public class Teledong
     {
         SendNonQueryCommand(TeledongCommands.SetSunlightMode, new byte[] { (byte)(enableSunlightMode ? 1 : 0) }, useMutex);
         sunlightMode = enableSunlightMode;
+        Debug.WriteLine("Set sunlight mode: " + enableSunlightMode.ToString());
     }
 
     /// <summary>
@@ -447,14 +449,14 @@ public class Teledong
     /// <exception cref="Exception"></exception>
     public void LoadCalibration()
     {
-        calibrationLowValues.Clear();
-        calibrationHighValues.Clear();
-
         if (device == null)
             throw new Exception("Device is not connected.");
 
         if (!usbMutex.WaitOne(TimeSpan.FromMilliseconds(300)))
             throw new Exception("USB Device is busy.");
+
+        calibrationLowValues.Clear();
+        calibrationHighValues.Clear();
 
         bool newDaylightMode = IsSunlightMode;
 
@@ -636,6 +638,7 @@ public class Teledong
                     sumSignalStrengthSunlight += highValuesSunlight[i] - lowValuesSunlight[i];
                 }
 
+                Debug.WriteLine($"\nSunlight diff.: {sumSignalStrengthSunlight}, indoors diff.: {sumSignalStrengthIndoors}");
                 if (sumSignalStrengthSunlight > sumSignalStrengthIndoors)
                 {
                     SetSunlightMode(true, useMutex: false);
@@ -709,7 +712,7 @@ public class Teledong
         }
     }
 
-    ~TeledongManager()
+    ~Teledong()
     {
         Disconnect();
     }
