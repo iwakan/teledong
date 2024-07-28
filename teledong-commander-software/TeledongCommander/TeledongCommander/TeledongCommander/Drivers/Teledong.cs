@@ -639,7 +639,7 @@ public class Teledong
                 }
 
                 Debug.WriteLine($"\nSunlight diff.: {sumSignalStrengthSunlight}, indoors diff.: {sumSignalStrengthIndoors}");
-                if (sumSignalStrengthSunlight > sumSignalStrengthIndoors)
+                if (sumSignalStrengthSunlight > sumSignalStrengthIndoors * 1.3)
                 {
                     SetSunlightMode(true, useMutex: false);
                     calibrationLowValues.AddRange(lowValuesSunlight);

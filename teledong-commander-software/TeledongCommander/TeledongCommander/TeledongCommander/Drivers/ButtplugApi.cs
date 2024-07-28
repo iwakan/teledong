@@ -45,10 +45,11 @@ public class ButtplugApi : OutputDevice
 
     private async void Processor_Output(object? sender, OutputEventArgs e)
     {
-        if (SelectedDeviceIndex >= 0 &&  SelectedDeviceIndex < client.Devices.Count())
+        if (SelectedDeviceIndex < 0 || SelectedDeviceIndex >= client.Devices.Count())
+            return;
 
         if (client.Devices[SelectedDeviceIndex] is ButtplugClientDevice clientDevice)
-            await clientDevice.SendLinearCmd((uint)e.Duration.TotalMilliseconds, e.Position);
+            await clientDevice.SendLinearCmd((uint)e.Duration.TotalMilliseconds * 2, e.Position);
 
         Debug.WriteLine("Sent pos: " + e.Position.ToString("N2") + " , " + e.Duration.TotalMilliseconds);
     }
@@ -66,7 +67,7 @@ public class ButtplugApi : OutputDevice
             await client.ConnectAsync(connector);
         }
         await client.StartScanningAsync();
-        await Task.Delay(2000);
+        await Task.Delay(10_000);
         await client.StopScanningAsync();
 
         Debug.WriteLine("Buttplug.io client currently knows about these devices:");
