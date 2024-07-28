@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+	<script type="text/javascript" src="teledong.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teledong example</title>
+</head>
+<body>
+    <button id="myButton">Connect/disconnect</button>
+    <button id="calibrateButton">Calibrate</button>
+	<div id="myLabel">Position: </div>
+
+    <script>
+		var teledong = null;
+		var timer = null;
+        function onButtonClick() {
+            
+			(async () => {
+				if (!teledong) {
+					teledong = new Teledong();
+					await teledong.connect();
+					timer = setInterval(myTimer, 50); // Sampling interval should not be too different from 50ms, otherwise features like KeepPositionAtRelease might not work correctly.
+				}
+				else {
+					await teledong.disconnect();
+					teledong = null;
+					clearInterval(timer);
+					document.getElementById('myLabel').textContent = "Position: ";
+				}
+			})();
+        }
+		
+		async function myTimer() {
+			if (!teledong || teledong.State == TeledongState.Calibrating)
+				return;
+				
+			document.getElementById('myLabel').textContent = "Position: " + await teledong.getPosition(); 
+		} 
+		
+		async function onCalibrateButtonClick() {
+            
+			(async () => {
+				if (!teledong || teledong.State == TeledongState.NotConnected)
+					return;
+				
+				document.getElementById('myLabel').textContent = "Move hand up and down along the shaft for 10 seconds..."
+				
+				await teledong.calibrate();
+			})();
+        }
+		
+
+        document.getElementById('myButton').addEventListener('click', onButtonClick);
+        document.getElementById('calibrateButton').addEventListener('click', onCalibrateButtonClick);
+    </script>
+</body>
+</html>
