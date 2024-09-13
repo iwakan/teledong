@@ -121,9 +121,9 @@ public class HandyStreamApi : OutputDevice
                     //if (firstPointTime == -10000)
                     //    firstPointTime = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset;
 
-                    if (previousPoints[0] != x)
+                    //if (previousPoints[0] != x)
                     {
-                        if (previousPoints[1] == previousPoints[0] && previousPoints[2] == previousPoints[1])
+                        if (false)//if (previousPoints[1] == previousPoints[0] && previousPoints[2] == previousPoints[1])
                         {
                             // Add previous identical point if there has been a pause in motion and points have been skipped. Otherwise the reaction is too slow when resuming motion.
                             points.Add(new
@@ -343,12 +343,14 @@ public class HandyStreamApi : OutputDevice
                 }
             }
 
+#if DEBUG
             if (sseWorker == null)
             {
                 sseWorker = new BackgroundWorker();
                 sseWorker.DoWork += SseWorker_DoWork;
                 sseWorker.RunWorkerAsync();
             }
+#endif
         }
         catch (Exception ex)
         {
@@ -386,7 +388,14 @@ public class HandyStreamApi : OutputDevice
 
         eventSourceClient.StateChanged += (sender, e) => Debug.WriteLine($"SSE State Changed: {e.ReadyState}");
 
-        eventSourceClient.Stream().Wait();
+        //while (true)
+        { 
+            try
+            {
+                eventSourceClient.Stream().Wait();
+            }
+            catch { }
+        }
 
         sseWorker = null;
     }

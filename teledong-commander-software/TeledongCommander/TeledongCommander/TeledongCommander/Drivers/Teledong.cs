@@ -13,7 +13,7 @@ namespace Teledong;
 /// <summary>
 /// Class to connect to and read position data from a Teledong device.
 /// Depends on Libusb. You need the LibUsbDotNet NuGet package as well as libusb binaries (such as libusb-1.0.dll for Windows which can be downloaded from https://libusb.info/). 
-/// See Teledong Commander software source for example usage.
+/// SEE THE DOCUMENT IntergrationGuide.md for a guide on using this library.
 /// </summary>
 public class Teledong
 {
@@ -123,7 +123,7 @@ public class Teledong
     }
 
     /// <summary>
-    /// Gets the current position of the sensor array, normalized based on the current calibration.
+    /// Gets the current position (how deep the device is inserted into something), normalized based on the current calibration.
     /// Should be called at a regular interval. It is recommended to use a timer interval around ~50ms, in order for some optional features such as KeepPositionAtRelease to work properly.
     /// </summary>
     /// <returns>Position, from 1.0 = Nothing on the dildo, to 0.0 = Dildo fully inserted.</returns>

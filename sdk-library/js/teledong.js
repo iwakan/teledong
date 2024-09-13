@@ -1,6 +1,7 @@
 /// Class to connect to and read position data from a Teledong device.
 /// Needs WebUSB which is not supported in all browsers. For example Firefox doesn't work.
 /// See example.html for example usage.
+/// SEE THE DOCUMENT IntergrationGuide.md for a guide on using this library.
 
 class Teledong {
 	
