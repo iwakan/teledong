@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Timers;
 using System.ComponentModel;
 using System.Text.Json;
+using Avalonia;
 
 namespace TeledongCommander;
 
@@ -50,12 +51,13 @@ public class HandyStreamApi : OutputDevice
     int millisecondsDiscrepancy = 0;
     bool hasAdjustedDiscrepancyTime = false;
     int millisecondsOffset => hasAdjustedDiscrepancyTime ? (int)Processor.FilterTime.TotalMilliseconds : 100;
-    bool flushNext = false;
+    bool shouldRestart = false;
     bool alternatePointNoise = false;
     int numberOfBatchedPoints => (int)Math.Ceiling(Processor.FilterTime.TotalMilliseconds / 400.0);
     int[] previousPoints = { 0, 100, 2 };
     int[] previousCurrentPoints = { -1, -1, -1, -1, -1 };
     DateTime previousPointTime = DateTime.Now;
+    int previousTime = 0;
     //int previousPoint = -1;
     BackgroundWorker? sseWorker = null;
 
@@ -74,14 +76,113 @@ public class HandyStreamApi : OutputDevice
         if (!IsStarted)
             return;
 
-        if (flushNext)
+        var flush = false;
+        if (shouldRestart)
         {
-            await Stop();
+            shouldRestart = false;
+            /*await Stop();
             await Task.Delay(300);
             await Start();
-            await Task.Delay(200);
+            await Task.Delay(200);*/
+            //flush = true;
+
+            // Flush
+            using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/flush"))
+            {
+                request.Headers.TryAddWithoutValidation("accept", "application/json");
+                request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
+                //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
+
+                var contentRaw = new
+                {
+                };
+                request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
+                request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+
+                try
+                {
+                    //Debug.WriteLine("Putting points: " + points.Count + " time: " + startTime.ToLongTimeString());
+                    var response = await httpClient.SendAsync(request);
+                    Debug.WriteLine("Flushing: " + response?.StatusCode);
+
+                    if (response != null && response.IsSuccessStatusCode)
+                    {
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Flushing failed: " + ex.Message);
+                }
+            }
+            // Rewind
+            using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/play"))
+            {
+                request.Headers.TryAddWithoutValidation("accept", "application/json");
+                request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
+                //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
+
+                var contentRaw = new
+                {
+                    startTime = previousTime + 100, //-(int)(DateTime.Now - benchmarkTime).TotalMilliseconds,
+                    serverTime = ((DateTimeOffset)DateTimeOffset.Now.ToUniversalTime()).ToUnixTimeMilliseconds(),
+                    playbackRate = 1.0,
+                    loop = false,
+                };
+                request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
+                request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+
+                var response = await httpClient.SendAsync(request);
+
+                if (response != null && response.IsSuccessStatusCode)
+                {
+                    successfullyConnected = true;
+                    Debug.WriteLine("START PLAYING " + startTime.ToLongTimeString());
+                    Debug.WriteLine(await response.Content.ReadAsStringAsync());
+                    isPlaying = true;
+                }
+                else
+                {
+                    ErrorMessage = "Failed to start playing...\nTry again.";
+                    TriggerStatusChanged();
+                    Debug.WriteLine("Failed to start playing: " + response?.ToString());
+                }
+            }
+            //isPlaying = false;
+            // Sync
+            /*using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/synctime"))
+            {
+                request.Headers.TryAddWithoutValidation("accept", "application/json");
+                request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
+                //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
+
+                var contentRaw = new
+                {
+                    current_time = previousTime + 100, //-(int)(DateTime.Now - benchmarkTime).TotalMilliseconds,
+                    server_time = ((DateTimeOffset)DateTimeOffset.Now.ToUniversalTime()).ToUnixTimeMilliseconds(),
+                };
+                request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
+                request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+
+                try
+                {
+                    //Debug.WriteLine("Putting points: " + points.Count + " time: " + startTime.ToLongTimeString());
+                    var response = await httpClient.SendAsync(request);
+                    Debug.WriteLine("Synctime: " + response?.StatusCode);
+
+                    if (response != null && response.IsSuccessStatusCode)
+                    {
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Synctime failed: " + ex.Message);
+                }
+            }*/
         }
-        flushNext = false;
+        shouldRestart = false;
 
         var now = DateTime.Now;
 
@@ -173,7 +274,7 @@ public class HandyStreamApi : OutputDevice
                         var contentRaw = new
                         {
                             points = points.ToArray(),
-                            flush = false,
+                            flush = flush,
                             tailPointStreamIndex = tailPointStreamIndex,
                         };
                         request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
@@ -211,6 +312,7 @@ public class HandyStreamApi : OutputDevice
                                         if (previousCurrentPoints[4] != responseJson.result.current_point)
                                             isStalled = false;
                                         previousCurrentPoints[4] = responseJson.result.current_point;
+                                        previousTime = responseJson.result.current_time;
 
                                         if (isStalled)
                                         {
@@ -230,7 +332,7 @@ public class HandyStreamApi : OutputDevice
                                         if ((responseJson.result.max_points - responseJson.result.points) < 100)
                                         {
                                             // Reset connection because it gets buggy when reaching max points
-                                            flushNext = true;
+                                            shouldRestart = true;
                                         }
                                     }
                                     else if (responseJson.error != null)
@@ -284,7 +386,11 @@ public class HandyStreamApi : OutputDevice
                             isPlaying = true;
                         }
                         else
+                        {
+                            ErrorMessage = "Failed to start playing...\nTry again.";
+                            TriggerStatusChanged();
                             Debug.WriteLine("Failed to start playing: " + response?.ToString());
+                        }
                     }
                 }
             }
