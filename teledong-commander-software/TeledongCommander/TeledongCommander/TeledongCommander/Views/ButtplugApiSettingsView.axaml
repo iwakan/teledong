@@ -15,7 +15,7 @@
 	<Grid Margin="20,15,20,5">
 		<StackPanel Spacing="15">
 			<DockPanel VerticalAlignment="Top" Height="30">
-				<Button Content="Scan for devices" Background="Green" Command="{Binding StartCommand}" VerticalAlignment="Center"></Button>
+				<Button Content="Connect/Scan" Background="Green" Command="{Binding StartCommand}" VerticalAlignment="Center"></Button>
 				<Button Content="❌ Remove" Command="{Binding RemoveCommand}" VerticalAlignment="Center" HorizontalAlignment="Right"></Button>
 			</DockPanel>
 			

@@ -81,7 +81,7 @@
 		<!-- OUTPUT AREA -->
 		<Border Background="{StaticResource SecondaryBackground}" BorderThickness="0" Margin="20" Padding="20" CornerRadius="30" Grid.Column="2">
 			<Grid>
-				<Grid RowDefinitions="50,50,1.2*,*,1.5*">
+				<Grid RowDefinitions="50,50,1.7*,250,Auto">
 
 					<TextBlock Text="Output" FontSize="20" HorizontalAlignment="Center" Margin="0,0,0,15"></TextBlock>
 				
@@ -137,13 +137,13 @@
 			</Grid>
 		</Border>
 
-		<!-- ABOUT BOX -->
+		<!-- ABOUT/SETTINGS BOX -->
 		<Button Content="☰" Command="{Binding ToggleInfoWindowCommand}" Grid.Column="1" FontSize="24" VerticalAlignment="Bottom" Margin="0,0,0,25" HorizontalAlignment="Center"></Button>
 
 		<Border IsVisible="{Binding InfoWindowIsOpen}" Padding="20" BorderBrush="Black" BorderThickness="2" Background="{StaticResource PrimaryBackground}" CornerRadius="15" Grid.ColumnSpan="3" HorizontalAlignment="Center" VerticalAlignment="Center">
 			<StackPanel MinWidth="400" MinHeight="400" Spacing="10">
 
-				<TextBlock Text="Teledong Commander software v0.4.0 - Teledong.com"></TextBlock>
+				<TextBlock Text="Teledong Commander software v0.9.0 - Teledong.com"></TextBlock>
 				<!--TODO UPDATE VERSION NUMBER AUTOMATICALLY-->
 
 				<TextBlock FontWeight="SemiBold" Text="Advanced debug info/settings" Margin="0,20,0,10"></TextBlock>
@@ -163,6 +163,9 @@
 					<Slider Value="{Binding ReadInterval}" VerticalAlignment="Center" Minimum="30" Maximum="250" Margin="40,-5,40,4" HorizontalAlignment="Stretch" LargeChange="50" SmallChange="10" ToolTip.Tip="This is the time interval between each time the position is recorded and sent to the output device. Shorter values will result in a smoother and more accurate motion, but can cause an unstable connection or jitter/stuttering on strokers if the bandwidth is not high enough. Default: 100ms" Height="35" />
 					<Button Content="+" Command="{Binding IncreaseReadIntervalCommand}" HorizontalAlignment="Right" VerticalAlignment="Center" Height="28"/>
 				</Grid>
+
+				<TextBlock Text="The Handy API auth key:" ToolTip.Tip="The Handy Connection Key output requires an API key. If the built-in key does not work, you can provide your own here. You can receive a key from https://user.handyfeeling.com/" Height="25" Margin="0,10,0,-15"/>
+				<TextBox Text="{Binding HandyManualAuthKey}"></TextBox>
 				
 			</StackPanel>	
 		</Border>

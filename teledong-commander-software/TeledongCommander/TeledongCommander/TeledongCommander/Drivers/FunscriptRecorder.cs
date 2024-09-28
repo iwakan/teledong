@@ -43,10 +43,9 @@ namespace TeledongCommander
             points.Add(new FunscriptPoint(e.Position, DateTime.Now - startTime));
         }
 
-        public override Task Start()
+        public override async Task Start()
         {
             StartRecording();
-            return Task.CompletedTask;
         }
 
         public override async Task Stop()

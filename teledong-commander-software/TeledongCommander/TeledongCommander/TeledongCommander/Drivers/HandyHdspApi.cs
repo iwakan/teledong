@@ -178,11 +178,10 @@ public class HandyHdspApi : OutputDevice
         }
     }
 
-    public override Task Stop()
+    public override async Task Stop()
     {
         successfullyConnected = false;
         httpClient.CancelPendingRequests();
         TriggerStatusChanged();
-        return Task.CompletedTask;
     }
 }

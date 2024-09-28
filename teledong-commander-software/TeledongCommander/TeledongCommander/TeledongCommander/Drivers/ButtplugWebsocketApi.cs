@@ -1,8 +1,4 @@
-﻿// This was the controller for using the old Buttplug nuget package (2.0.6) that had a built-in server.
-// Sadly this was discontinued, now we have to route commands through intiface instead using ButtplugWebsocketApi.cs
-
-/*using Buttplug;
-using Google.Protobuf.WellKnownTypes;
+﻿using Buttplug.Client;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -29,7 +25,7 @@ public class ButtplugApi : OutputDevice
 
             if (!client.Connected || deviceCount == 0)
                 return "No device found";
-            else if (client.IsScanning)
+            else if (IsScanning)
                 return "Scanning for devices...";
             else if (deviceCount == 1)
                 return "Connected to " + client.Devices.First().Name;
@@ -43,7 +39,34 @@ public class ButtplugApi : OutputDevice
     public ButtplugApi() : base()
     {
         Processor.Output += Processor_Output;
-        client = new ButtplugClient("MyClient");
+        client = new ButtplugClient("Teledong Commander");
+        client.ScanningFinished += Client_ScanningFinished;
+        client.ServerDisconnect += Client_ServerDisconnect;
+        client.DeviceAdded += Client_DeviceAdded;
+        client.DeviceRemoved += Client_DeviceRemoved;
+    }
+
+    private void Client_DeviceRemoved(object? sender, DeviceRemovedEventArgs e)
+    {
+        TriggerStatusChanged();
+    }
+
+    private void Client_DeviceAdded(object? sender, DeviceAddedEventArgs e)
+    {
+        TriggerStatusChanged();
+    }
+
+    private async void Client_ServerDisconnect(object? sender, EventArgs e)
+    {
+        await Stop();
+        ErrorMessage = "Server disconnected";
+        TriggerStatusChanged();
+    }
+
+    private void Client_ScanningFinished(object? sender, EventArgs e)
+    {
+        IsScanning = false;
+        TriggerStatusChanged();
     }
 
     private async void Processor_Output(object? sender, OutputEventArgs e)
@@ -52,7 +75,7 @@ public class ButtplugApi : OutputDevice
             return;
 
         if (client.Devices[SelectedDeviceIndex] is ButtplugClientDevice clientDevice)
-            await clientDevice.SendLinearCmd((uint)e.Duration.TotalMilliseconds * 2, e.Position);
+            await clientDevice.LinearAsync((uint)(e.Duration.TotalMilliseconds * 1.5), e.Position);
 
         Debug.WriteLine("Sent pos: " + e.Position.ToString("N2") + " , " + e.Duration.TotalMilliseconds);
     }
@@ -61,13 +84,24 @@ public class ButtplugApi : OutputDevice
     {
         await Stop();
 
+        ErrorMessage = null;
         IsScanning = true;
         TriggerStatusChanged();
 
         if (!client.Connected)
         {
-            var connector = new ButtplugEmbeddedConnectorOptions() { ServerName = "MyServer" };
-            await client.ConnectAsync(connector);
+            try
+            {
+                var connector = new ButtplugWebsocketConnector(new Uri("ws://localhost:12345"));
+                await client.ConnectAsync(connector);
+            }
+            catch 
+            {
+                IsScanning = false;
+                ErrorMessage = "Couldn't connect to Websocket";
+                TriggerStatusChanged();
+                return;
+            }
         }
         await client.StartScanningAsync();
         await Task.Delay(10_000);
@@ -98,4 +132,3 @@ public class ButtplugApi : OutputDevice
         { }
     }
 }
-*/

@@ -20,7 +20,7 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.1.0" />
     <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
     <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.1.0" />
-    <PackageReference Include="Buttplug" Version="2.0.6" />
+    <PackageReference Include="Buttplug" Version="4.0.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="EventSourceClient" Version="2.0.0" />
     <PackageReference Include="LibUsbDotNet" Version="2.2.29" />

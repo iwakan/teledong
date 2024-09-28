@@ -19,7 +19,7 @@ public partial class OutputDeviceViewModel : ViewModelBase
     private string? _secondaryTitle = "[Secondary title]";
 
     [ObservableProperty]
-    private string _statusLabelSymbol = "☐";//☐🗹
+    private string _statusLabelSymbol = "☐"; // ☐ or 🗹
 
     [ObservableProperty]
     private Brush _statusLabelBrush = new SolidColorBrush(Colors.LightGray);

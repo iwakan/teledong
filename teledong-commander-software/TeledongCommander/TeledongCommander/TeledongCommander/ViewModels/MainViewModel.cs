@@ -54,6 +54,9 @@ public partial class MainViewModel : ViewModelBase
 
     public bool AdvancedOutputSettingsIsVisible => AdvancedOutputSettingsAreOpen && SelectedOutputDevice != null;
 
+    [ObservableProperty]
+    private string _handyManualAuthKey = "";
+
     public bool HasOutputDevices => OutputDevices.Any();
 
     [ObservableProperty]
@@ -372,7 +375,7 @@ public partial class MainViewModel : ViewModelBase
     {
         OutputDeviceViewModel? outputDeviceViewModel = SelectedOutputDeviceToAdd switch
         {
-            0 => new HandyOnlineApiViewModel(new HandyStreamApi()),
+            0 => new HandyOnlineApiViewModel(new HandyStreamApi() { ApiKey = (HandyManualAuthKey.Length > 10 ? HandyManualAuthKey : "")}),
             1 => new FunscriptRecorderViewModel(new FunscriptRecorder()),
             2 => new ButtplugApiViewModel(new ButtplugApi()),
             _ => null
@@ -392,7 +395,7 @@ public partial class MainViewModel : ViewModelBase
     {
         OutputDeviceViewModel? outputDeviceViewModel = typeId switch
         {
-            nameof(HandyStreamApi) => new HandyOnlineApiViewModel(new HandyStreamApi()),
+            nameof(HandyStreamApi) => new HandyOnlineApiViewModel(new HandyStreamApi() { ApiKey = (HandyManualAuthKey.Length > 10 ? HandyManualAuthKey : "") }),
             nameof(FunscriptRecorder) => new FunscriptRecorderViewModel(new FunscriptRecorder()),
             nameof(ButtplugApi) => new ButtplugApiViewModel(new ButtplugApi()),
             _ => null
@@ -463,6 +466,23 @@ public partial class MainViewModel : ViewModelBase
     {
         teledongApi.KeepPositionAtRelease = value;
     }
+
+    partial void OnHandyManualAuthKeyChanged(string value)
+    {
+        foreach (var device in OutputDevices)
+        {
+            if (device is HandyOnlineApiViewModel handyDevice)
+            {
+                var internalDevice = handyDevice.OutputDevice as HandyStreamApi;
+                if (internalDevice == null)
+                    continue;
+
+                internalDevice.Stop();
+                internalDevice.ApiKey = HandyManualAuthKey;
+            }
+        }
+    }
+
     [RelayCommand]
     protected void IncreaseReadInterval()
     {
@@ -525,9 +545,15 @@ public partial class MainViewModel : ViewModelBase
         DisconnectOutputDevice();
     }
 
+    partial void OnInfoWindowIsOpenChanged(bool value)
+    {
+        if (value == false)
+            SaveSettings();
+    }
+
     private void LoadSettings()
     {
-        // Todo refactor this, use automatic serialization/deserialization
+        // Todo refactor this, use JsonSerializer
         var settingsFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), settingsFolderName, "settings.xml");
         if (File.Exists(settingsFilePath))
         {
@@ -542,6 +568,13 @@ public partial class MainViewModel : ViewModelBase
                         if (node.HasAttribute("SampleRate"))
                         {
                             ReadInterval = int.Max(int.Parse(node.GetAttribute("SampleRate")), 20);
+                        }
+                    }
+                    else if (node.Name == "CommonOutputSettings")
+                    {
+                        if (node.HasAttribute("HandyManualAuthKey"))
+                        {
+                            HandyManualAuthKey = node.GetAttribute("HandyManualAuthKey");
                         }
                     }
                     else if (node.Name == "OutputDevices")
@@ -560,6 +593,9 @@ public partial class MainViewModel : ViewModelBase
                             {
                                 outputDeviceViewModel.FilterTimeMilliseconds = float.Parse(outputDeviceNode.GetAttribute("FilterTime"));
                             }
+                            else
+                                outputDeviceViewModel.FilterTimeMilliseconds = 400;
+
                             if (outputDeviceNode.HasAttribute("PeakMotionMode"))
                             {
                                 outputDeviceViewModel.PeakMotionMode = outputDeviceNode.GetAttribute("PeakMotionMode") == "true";
@@ -594,7 +630,7 @@ public partial class MainViewModel : ViewModelBase
     {
         try
         {
-            // Todo refactor this, use automatic serialization/deserialization
+            // Todo refactor this, use JsonSerializer
             var settingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), settingsFolderName, "settings.xml");
             if (!Directory.Exists(Path.GetDirectoryName(settingsFilePath)))
                 Directory.CreateDirectory(Path.GetDirectoryName(settingsFilePath)!);
@@ -610,6 +646,10 @@ public partial class MainViewModel : ViewModelBase
             var inputSettingsElement = settings.CreateElement("InputSettings");
             inputSettingsElement.SetAttribute("SampleRate", ReadInterval.ToString("N0"));
             rootElement.AppendChild(inputSettingsElement);
+
+            var outputSettingsElement = settings.CreateElement("CommonOutputSettings");
+            outputSettingsElement.SetAttribute("HandyManualAuthKey", HandyManualAuthKey);
+            rootElement.AppendChild(outputSettingsElement);
 
             var outputDevicesElement = settings.CreateElement("OutputDevices");
 

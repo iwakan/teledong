@@ -20,13 +20,13 @@ namespace TeledongCommander
 
         public event EventHandler? StatusChanged;
 
-        public OutputDevice() 
+        public OutputDevice()
         {
             Processor = new OutputProcessor();
         }
 
-        virtual public Task Start() => Task.CompletedTask;
-        virtual public Task Stop() => Task.CompletedTask;
+        virtual public async Task Start() { }
+        virtual public async Task Stop() { }
         virtual public void InputPostion(double position)
         {
             if (!IsStarted)

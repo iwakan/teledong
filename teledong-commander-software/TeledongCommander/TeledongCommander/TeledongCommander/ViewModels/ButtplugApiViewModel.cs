@@ -23,7 +23,7 @@ public partial class ButtplugApiViewModel : OutputDeviceViewModel
     {
         HideFilterStrengthSetting = true;
 
-        Title = "Local Server";
+        Title = "Buttplug/Intiface";
         SecondaryTitle = null;
     }
 

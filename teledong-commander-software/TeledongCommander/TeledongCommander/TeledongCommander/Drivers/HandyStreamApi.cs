@@ -31,18 +31,18 @@ public class HandyStreamApi : OutputDevice
 
     private string connectionKey = "";
     public string ConnectionKey { get { return connectionKey; } set { if (connectionKey != value) { connectionKey = value; TriggerStatusChanged(); } } }
+    public string ApiKey { get; set; } = "";
 
     const string baseApiUrl = "https://www.handyfeeling.com/api/handy-rest/v3/";
     HttpClient httpClient;
     bool isClosed = false;
     bool successfullyConnected = false;
-    Mutex criticalMessageLock = new Mutex();
+    //Mutex criticalMessageLock = new Mutex();
     DateTime previousModeSetTime = DateTime.Now;
     Queue<HspPoint> buffer = new Queue<HspPoint>();
     DateTime startTime = DateTime.Now;
     DateTime lastBufferPushTime = DateTime.Now;
     int streamId = 100;
-    string ApiKey = "";
     string? apiAuthToken = null;
     bool isPlaying = false;
     bool hasInitedStart = false;
@@ -54,14 +54,13 @@ public class HandyStreamApi : OutputDevice
     bool alternatePointNoise = false;
     int numberOfBatchedPoints => (int)Math.Ceiling(Processor.FilterTime.TotalMilliseconds / 400.0);
     int[] previousPoints = { 0, 100, 2 };
+    int[] previousCurrentPoints = { -1, -1, -1, -1, -1 };
     DateTime previousPointTime = DateTime.Now;
     //int previousPoint = -1;
     BackgroundWorker? sseWorker = null;
 
     public HandyStreamApi() : base()
     {
-        ApiKey = App.UserData["HandyFw4BetaApiKey"];
-
         Processor.SkipFiltering = true;
         Processor.Output += Processor_Output;
         Processor.PeakMotionMode = false;
@@ -74,6 +73,15 @@ public class HandyStreamApi : OutputDevice
     {
         if (!IsStarted)
             return;
+
+        if (flushNext)
+        {
+            await Stop();
+            await Task.Delay(300);
+            await Start();
+            await Task.Delay(200);
+        }
+        flushNext = false;
 
         var now = DateTime.Now;
 
@@ -151,6 +159,7 @@ public class HandyStreamApi : OutputDevice
                 }
                 while (buffer.Any());
 
+
                 if (points.Count > 0)
                 {
                     var benchmarkTime = DateTime.Now;
@@ -161,13 +170,10 @@ public class HandyStreamApi : OutputDevice
                         //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
                         request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
 
-                        if (flushNext)
-                            tailPointStreamIndex = points.Count;
-
                         var contentRaw = new
                         {
                             points = points.ToArray(),
-                            flush = flushNext,
+                            flush = false,
                             tailPointStreamIndex = tailPointStreamIndex,
                         };
                         request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
@@ -188,15 +194,43 @@ public class HandyStreamApi : OutputDevice
                                 {
                                     if (responseJson.result != null)
                                     {
-                                        //millisecondsDiscrepancy = (responseJson.result.current_time - firstPointTime);
-                                        //millisecondsOffset += millisecondsDiscrepancy;
-                                        //if (responseJson.result.points + 100 > responseJson.result.max_points)
-                                        //    flushNext = true;
                                         if (isPlaying && !hasAdjustedDiscrepancyTime)
                                         {
                                             millisecondsDiscrepancy = responseJson.result.last_point_time - responseJson.result.current_time;// - 1000;
                                             Debug.WriteLine("Timing discrepancy: " + millisecondsDiscrepancy);
                                             hasAdjustedDiscrepancyTime = true;
+                                        }
+
+                                        var isStalled = true;
+                                        for (int i = 0; i < 4; i++)
+                                        {
+                                            if (previousCurrentPoints[i] != previousCurrentPoints[i + 1])
+                                                isStalled = false;
+                                            previousCurrentPoints[i] = previousCurrentPoints[i + 1];
+                                        }
+                                        if (previousCurrentPoints[4] != responseJson.result.current_point)
+                                            isStalled = false;
+                                        previousCurrentPoints[4] = responseJson.result.current_point;
+
+                                        if (isStalled)
+                                        {
+                                            var update = ErrorMessage == null;
+                                            ErrorMessage = "Stalled! Try increasing latency\nand reconnecting.";
+                                            if (update)
+                                                TriggerStatusChanged();
+                                        }
+                                        else
+                                        {
+                                            var update = ErrorMessage != null;
+                                            ErrorMessage = null;
+                                            if (update)
+                                                TriggerStatusChanged();
+                                        }
+
+                                        if ((responseJson.result.max_points - responseJson.result.points) < 100)
+                                        {
+                                            // Reset connection because it gets buggy when reaching max points
+                                            flushNext = true;
                                         }
                                     }
                                     else if (responseJson.error != null)
@@ -210,15 +244,18 @@ public class HandyStreamApi : OutputDevice
                         }
                         catch (Exception ex)
                         {
-                            Debug.WriteLine("Failed: " + ex.Message);
-                            ErrorMessage = "Failed to send positions";
-                            TriggerStatusChanged();
+                            if (ex is not TaskCanceledException)
+                            {
+                                Debug.WriteLine("Failed: " + ex.Message);
+                                ErrorMessage = "Failed to send positions";
+                                TriggerStatusChanged();
+                            }
                         }
                     }
                 }
 
 
-                if ((!isPlaying && (DateTime.Now - startTime) > TimeSpan.FromSeconds(1)) || flushNext)
+                if ((!isPlaying && (DateTime.Now - startTime) > TimeSpan.FromSeconds(1)))
                 {
                     using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/play"))
                     {
@@ -256,12 +293,14 @@ public class HandyStreamApi : OutputDevice
                 Debug.WriteLine("Failed to send/process points to The Handy: " + ex.ToString());
             }
 
-            flushNext = false;
         }
     }
 
     public override async Task Start()
     {
+        if (string.IsNullOrEmpty(ApiKey))
+            ApiKey = App.UserData["HandyFw4BetaApiKey"] ?? "";
+
         await SetMode();
         await SetupStreaming();
         TriggerStatusChanged();
@@ -269,13 +308,17 @@ public class HandyStreamApi : OutputDevice
 
     public async Task SetupStreaming()
     {
-        if (!criticalMessageLock.WaitOne(1000))
-            return;
+        //if (!criticalMessageLock.WaitOne(1000))
+        //    return;
 
         successfullyConnected = false;
         buffer.Clear();
         //streamId += 1;
         tailPointStreamIndex = 0;
+        for (int i = 0; i < 5; i++)
+        {
+            previousCurrentPoints[i] = -1;
+        }
 
         try
         {
@@ -297,7 +340,10 @@ public class HandyStreamApi : OutputDevice
 
                     var response = await httpClient.SendAsync(request);
 
-                    if (response != null)
+                    if (response == null)
+                        throw new Exception("Failed to get auth response");
+
+                    if (response.StatusCode == System.Net.HttpStatusCode.OK)
                     {
                         var responseText = await response.Content.ReadAsStringAsync();
                         var responseJson = System.Text.Json.JsonSerializer.Deserialize<AuthenticationApiResponse>(responseText);
@@ -307,6 +353,12 @@ public class HandyStreamApi : OutputDevice
                             //if (response.IsSuccessStatusCode)
                             apiAuthToken = responseJson.token;
                         }
+                    }
+                    else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        ErrorMessage = "Unauthorized API key, check settings.";
+                        TriggerStatusChanged();
+                        return;
                     }
                 }
             }
@@ -323,7 +375,7 @@ public class HandyStreamApi : OutputDevice
 
                 var contentRaw = new
                 {
-                    streamId = streamId
+                    streamId = streamId++
                 };
                 request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
                 request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -359,7 +411,7 @@ public class HandyStreamApi : OutputDevice
         }
         finally
         {
-            criticalMessageLock.ReleaseMutex();
+            //criticalMessageLock.ReleaseMutex();
         }
     }
 
@@ -402,8 +454,8 @@ public class HandyStreamApi : OutputDevice
 
     public async Task<int> GetMode()
     {
-        if (!criticalMessageLock.WaitOne(1000))
-            return 0;
+        //if (!criticalMessageLock.WaitOne(1000))
+        //    return 0;
 
         try
         {
@@ -427,14 +479,14 @@ public class HandyStreamApi : OutputDevice
         }
         finally
         {
-            criticalMessageLock.ReleaseMutex();
+            //criticalMessageLock.ReleaseMutex();
         }
     }
 
     public async Task SetMode(int mode = 1)
     {
-        if (!criticalMessageLock.WaitOne(1000))
-            return;
+        //if (!criticalMessageLock.WaitOne(1000))
+        //    return;
 
         try
         {
@@ -467,15 +519,16 @@ public class HandyStreamApi : OutputDevice
         }
         finally
         {
-            criticalMessageLock.ReleaseMutex();
+            //criticalMessageLock.ReleaseMutex();
         }
     }
 
-    public override Task Stop()
+    public override async Task Stop()
     {
         successfullyConnected = false;
         isPlaying = false;
         hasInitedStart = false;
+        hasAdjustedDiscrepancyTime = false;
         httpClient.CancelPendingRequests();
         ErrorMessage = null;
         TriggerStatusChanged();
@@ -489,12 +542,12 @@ public class HandyStreamApi : OutputDevice
                 //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
                 request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
 
-                return httpClient.SendAsync(request);
+                await httpClient.SendAsync(request);
             }
         }
         catch
         {
-            return Task.CompletedTask;
+            return;
         }
     }
 
