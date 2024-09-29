@@ -305,7 +305,7 @@ public class HandyStreamApi : OutputDevice
                                         var isStalled = true;
                                         for (int i = 0; i < 4; i++)
                                         {
-                                            if (previousCurrentPoints[i] != previousCurrentPoints[i + 1])
+                                            if (previousCurrentPoints[i] != previousCurrentPoints[i + 1] && previousCurrentPoints[i] > 0)
                                                 isStalled = false;
                                             previousCurrentPoints[i] = previousCurrentPoints[i + 1];
                                         }
@@ -317,7 +317,7 @@ public class HandyStreamApi : OutputDevice
                                         if (isStalled)
                                         {
                                             var update = ErrorMessage == null;
-                                            ErrorMessage = "Stalled! Try increasing latency\nand reconnecting.";
+                                            ErrorMessage = "Stalled! Try increasing latency\nand/or reconnecting.";
                                             if (update)
                                                 TriggerStatusChanged();
                                         }
@@ -338,6 +338,8 @@ public class HandyStreamApi : OutputDevice
                                     else if (responseJson.error != null)
                                     {
                                         ErrorMessage = "Failed: " + responseJson.error.message;
+                                        if (responseJson.error.code == 1001)
+                                            ErrorMessage += ".\nMake sure it is updated to FW4, is online, and the connection key is correct.";
                                         TriggerStatusChanged();
                                     }
                                     Debug.WriteLine("Point put response: " + responseJson ?? "null");
@@ -589,7 +591,7 @@ public class HandyStreamApi : OutputDevice
         }
     }
 
-    public async Task SetMode(int mode = 1)
+    public async Task SetMode(int mode = 1) // Is this needed in APIv3? Is 1 even correct? 
     {
         //if (!criticalMessageLock.WaitOne(1000))
         //    return;
