@@ -74,8 +74,25 @@ public class ButtplugApi : OutputDevice
         if (SelectedDeviceIndex < 0 || SelectedDeviceIndex >= client.Devices.Count())
             return;
 
-        if (client.Devices[SelectedDeviceIndex] is ButtplugClientDevice clientDevice)
-            await clientDevice.LinearAsync((uint)(e.Duration.TotalMilliseconds * 1.5), e.Position);
+        try
+        {
+            if (client.Devices[SelectedDeviceIndex] is ButtplugClientDevice clientDevice)
+                await clientDevice.LinearAsync((uint)(e.Duration.TotalMilliseconds * 2.1), e.Position); // Have to multiply duration with 2 or movement is too jagged
+        }
+        catch (Exception ex)
+        {
+            var _changed = ErrorMessage == null;
+            ErrorMessage = "Failed to send position: " + ex.GetType().ToString();
+            if (_changed)
+                TriggerStatusChanged();
+
+            return; 
+        }
+
+        var changed = ErrorMessage != null;
+        ErrorMessage = null;
+        if (changed)
+            TriggerStatusChanged();
 
         Debug.WriteLine("Sent pos: " + e.Position.ToString("N2") + " , " + e.Duration.TotalMilliseconds);
     }
