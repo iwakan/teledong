@@ -70,8 +70,11 @@
 					</StackPanel>
 					
 					<TextBlock Text="{Binding InputDeviceError}" Foreground="Orange" TextWrapping="Wrap"/>
-					
+
+
 				</StackPanel>
+
+				<Button Content="New software update available!" Foreground="LightGreen" IsVisible="{Binding HasNewVersion}" VerticalAlignment="Bottom" Grid.Row="2" Command="{Binding OpenWebsite}" />
 
 			</Grid>
 		</Border>
@@ -153,8 +156,12 @@
 
 				<StackPanel Orientation="Horizontal" IsVisible="{Binding InputDeviceIsTeledong}">
 					<Button Margin="5" Content="Enter Teledong Bootloader" Command="{Binding TeledongBootToBootloaderCommand}" IsEnabled="{Binding InputDeviceIsTeledong}"></Button>
-					<TextBlock Margin="5" VerticalAlignment="Center" Text="{Binding TeledongFirmwareVersion, StringFormat='Firmware version: v{0}'}" IsEnabled="{Binding InputDeviceIsTeledong}" />
+					<StackPanel>
+						<TextBlock Margin="0" VerticalAlignment="Center" Text="{Binding TeledongFirmwareVersion, StringFormat='Current firmware version: {0}'}" />
+						<TextBlock Margin="0" VerticalAlignment="Center" Text="{Binding NewFirmwareVersion, StringFormat='Newest firmware version: {0}'}" IsVisible="{Binding InputDeviceIsTeledong}"/>
+					</StackPanel>
 				</StackPanel>
+				
 				<CheckBox Margin="5" Content="Teledong sunlight mode" IsChecked="{Binding TeledongSunlightMode}"></CheckBox>
 
 				<TextBlock Text="{Binding ReadInterval, StringFormat='Update interval: {0:0} ms'}" ToolTip.Tip="This is the time interval between each time the position is recorded and sent to the output device. Shorter values can result in a smoother and more accurate motion, but can also cause an unstable connection or jitter/stuttering on strokers if the bandwidth is not high enough. Default: 100ms" Height="25" Margin="0,10,0,-15"/>

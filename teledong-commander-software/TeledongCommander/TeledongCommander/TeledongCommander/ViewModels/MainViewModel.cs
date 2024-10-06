@@ -18,6 +18,8 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using System.Net.Http;
+using System.Reflection;
 
 namespace TeledongCommander.ViewModels;
 
@@ -43,7 +45,7 @@ public partial class MainViewModel : ViewModelBase
     public bool DebugMode => InfoWindowIsOpen;
 
     [ObservableProperty]
-    private int _teledongFirmwareVersion;
+    private string? _teledongFirmwareVersion = null;
 
     [ObservableProperty]
     private bool _teledongHasBadCalibration = false;
@@ -138,6 +140,19 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string? _inputDeviceError;
 
+    [ObservableProperty]
+    private string? _newVersion;
+
+    [ObservableProperty]
+    private string? _newFirmwareVersion;
+
+    [ObservableProperty]
+    private string? _currentVersion;
+
+    [ObservableProperty]
+    private bool _hasNewVersion = false;
+
+
     const string settingsFolderName = "TeledongCommander";
 
     Teledong.Teledong teledongApi = new();
@@ -155,6 +170,9 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel()
     {
+        CurrentVersion = Assembly.GetExecutingAssembly().GetName().Version!.ToString().Split('-')[0][0..^2];
+        CheckForUpdates();
+
         PositionChartXAxes = new Axis[]
         {
             new Axis
@@ -338,7 +356,7 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ConnectInputDevice()
+    private async void ConnectInputDevice()
     {
         if (InputDeviceIsTeledong)
         {
@@ -357,8 +375,9 @@ public partial class MainViewModel : ViewModelBase
                 if (TeledongSunlightMode != teledongApi.IsSunlightMode)
                     TeledongSunlightMode = teledongApi.IsSunlightMode;
 
-                TeledongFirmwareVersion = teledongApi.GetFirmwareVersion();
+                TeledongFirmwareVersion = teledongApi.GetFirmwareVersion().ToString();
                 InputDeviceError = null;
+                await CheckForFirmwareUpdates();
             }
             else
             { 
@@ -527,6 +546,65 @@ public partial class MainViewModel : ViewModelBase
         }
         isCalibrating = false;
         InputDeviceError = null;
+    }
+
+    [RelayCommand]
+    public async Task CheckForUpdates()
+    {
+        try
+        {
+            using var client = new HttpClient();
+            var newVersion = await client.GetStringAsync("https://raw.githubusercontent.com/iwakan/teledong/main/commander-version");
+            var currentVersion = CurrentVersion;
+            if (newVersion != null && newVersion.Length < 20)
+                NewVersion = newVersion;
+            else
+            {
+                NewVersion = null;
+                throw new Exception("Unexpected version value");
+            }
+
+            if (NewVersion != null && CurrentVersion != NewVersion)
+            {
+                HasNewVersion = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            NewVersion = null;
+        }
+    }
+
+    [RelayCommand]
+    public async Task CheckForFirmwareUpdates()
+    {
+        try
+        {
+            using var client = new HttpClient();
+            var newFirmwareVersion = await client.GetStringAsync("https://raw.githubusercontent.com/iwakan/teledong/main/firmware-version");
+            var currentVersion = TeledongFirmwareVersion;
+            if (newFirmwareVersion != null && newFirmwareVersion.Length < 20)
+                NewFirmwareVersion = newFirmwareVersion;
+            else
+            {
+                NewFirmwareVersion = null;
+                throw new Exception("Unexpected version value");
+            }
+        }
+        catch (Exception ex)
+        {
+            NewFirmwareVersion = null;
+        }
+    }
+
+    [RelayCommand]
+    public void OpenWebsite()
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "https://teledong.com/teledong-commander",
+            UseShellExecute = true
+        });
     }
 
     private void DisconnectOutputDevice()
