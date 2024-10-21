@@ -439,7 +439,7 @@ public class HandyStreamApi : OutputDevice
         }
 
         if (string.IsNullOrEmpty(ApiKey))
-            ApiKey = App.UserData["HandyFw4BetaApiKey"] ?? "";
+            ApiKey = App.UserData["HandyFw4BetaApiKey"] ?? ""; // Not used right now, using public Handy App ID instead, see Authenticate()
 
         //await SetMode();
 
@@ -458,7 +458,10 @@ public class HandyStreamApi : OutputDevice
 
     public async Task Authenticate()
     {
-        if (string.IsNullOrEmpty(apiAuthToken))
+        apiAuthToken = "6TpU0euyxpYGZFoeQ~AimuZl__kU57U~";
+        return;
+
+        /*if (string.IsNullOrEmpty(apiAuthToken))
         {
             Debug.WriteLine("Authenticating...");
             using (var request = new HttpRequestMessage(new HttpMethod("GET"), baseApiUrl + "auth/token/issue"))
@@ -469,7 +472,8 @@ public class HandyStreamApi : OutputDevice
 
                 var contentRaw = new
                 {
-                    ck = ConnectionKey
+                    ck = ConnectionKey,
+                    ttl = 3600*6
                 };
                 request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
                 request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -496,8 +500,14 @@ public class HandyStreamApi : OutputDevice
                     TriggerStatusChanged();
                     return;
                 }
+                else
+                {
+                    ErrorMessage = "Error when connecting: " + response.ReasonPhrase + ", " + await response.Content.ReadAsStringAsync() ?? "";
+                    TriggerStatusChanged();
+                    return;
+                }
             }
-        }
+        }*/
     }
 
     public async Task SetupStreaming()
