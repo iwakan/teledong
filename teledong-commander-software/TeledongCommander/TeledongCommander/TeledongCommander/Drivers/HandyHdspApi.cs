@@ -33,8 +33,8 @@ public class HandyHdspApi : OutputDevice
     bool isClosed = false;
     bool successfullyConnected = false;
     Mutex criticalMessageLock = new Mutex();
-    DateTime previousModeSetTime = DateTime.Now;
-    DateTime previousCommandTime = DateTime.Now;
+    DateTime previousModeSetTime = DateTime.UtcNow;
+    DateTime previousCommandTime = DateTime.UtcNow;
     double previousPosition = 1.0;
 
     public HandyHdspApi() : base()
@@ -49,7 +49,7 @@ public class HandyHdspApi : OutputDevice
         if (!IsStarted)
             return;
 
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
 
         if (now - previousModeSetTime > TimeSpan.FromSeconds(5))
         {

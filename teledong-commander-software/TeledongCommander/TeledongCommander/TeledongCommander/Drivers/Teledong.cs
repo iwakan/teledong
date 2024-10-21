@@ -46,7 +46,7 @@ public class Teledong
     List<byte> calibrationHighValues = new List<byte>();
 
     //double[] lastPositions = new double[2] { 0, 0 };
-    //DateTime[] timeOfLastPositions = new DateTime[2] { DateTime.Now, DateTime.Now - TimeSpan.FromMilliseconds(100) };
+    //DateTime[] timeOfLastPositions = new DateTime[2] { DateTime.UtcNow, DateTime.UtcNow - TimeSpan.FromMilliseconds(100) };
     //KalmanFilter1D? filter; // Unused as of now
 
     UsbDevice? device;
@@ -135,7 +135,7 @@ public class Teledong
 
         // Todo: could make this more advanced. Possible to use machine learning to predict position even without needing calibration?
 
-        var beforeReadTime = DateTime.Now;
+        var beforeReadTime = DateTime.UtcNow;
 
         // First pass, rough estimation based on sensor readings only
         var sensorValues = GetRawSensorValues().ToList();
@@ -145,7 +145,7 @@ public class Teledong
             throw new Exception("Unexpected result from sensor readings: 0 sensor values returned");
         }
 
-        var afterReadTime = DateTime.Now;
+        var afterReadTime = DateTime.UtcNow;
 
         double totalValue = 0;
         int lastDetectionIndex = 0;
@@ -535,7 +535,7 @@ public class Teledong
             try
             {
                 // Todo: maybe implement some smoothing/filtering in case of occasional anomalous readings
-                DateTime startTime = DateTime.Now;
+                DateTime startTime = DateTime.UtcNow;
                 int numSensors = 0;
 
                 var lowValuesIndoor = new List<byte>();
@@ -560,7 +560,7 @@ public class Teledong
 
                 Thread.Sleep(20);
 
-                while (DateTime.Now - startTime < duration/2)
+                while (DateTime.UtcNow - startTime < duration/2)
                 {
                     int i = 0;
                     foreach (var sensorValue in GetRawSensorValues(normalizeToCalibration: false, useMutex: false))
@@ -595,7 +595,7 @@ public class Teledong
 
                 Thread.Sleep(20);
 
-                while (DateTime.Now - startTime < duration)
+                while (DateTime.UtcNow - startTime < duration)
                 {
                     int i = 0;
                     foreach (var sensorValue in GetRawSensorValues(normalizeToCalibration: false, useMutex: false))

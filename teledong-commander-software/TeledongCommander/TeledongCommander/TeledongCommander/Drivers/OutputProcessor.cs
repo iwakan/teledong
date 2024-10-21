@@ -24,9 +24,9 @@ namespace TeledongCommander
 
         readonly List<StrokerPoint> inputPointBuffer = new List<StrokerPoint>();
         readonly Queue<StrokerPoint> outputPointBuffer = new Queue<StrokerPoint>();
-        readonly DateTime referenceTime = DateTime.Now;
-        DateTime lastWriteTime = DateTime.Now;
-        DateTime lastWriteTimePeak = DateTime.Now;
+        readonly DateTime referenceTime = DateTime.UtcNow;
+        DateTime lastWriteTime = DateTime.UtcNow;
+        DateTime lastWriteTimePeak = DateTime.UtcNow;
         double previousPosition = 0.9;
         StrokeDirection currentDirection = StrokeDirection.None;
 
@@ -37,7 +37,7 @@ namespace TeledongCommander
         /// <param name="position"></param>
         public void PutPositionAndProcessOutput(double position)
         {
-            var now = DateTime.Now - referenceTime;
+            var now = DateTime.UtcNow - referenceTime;
 
             if (!PeakMotionMode)
             {
@@ -76,7 +76,7 @@ namespace TeledongCommander
 
                 if (currentDirection == StrokeDirection.Up)
                 {
-                    if (position <= previousPosition || DateTime.Now - lastWriteTimePeak > TimeSpan.FromSeconds(0.8))
+                    if (position <= previousPosition || DateTime.UtcNow - lastWriteTimePeak > TimeSpan.FromSeconds(0.8))
                     {
                         Debug.WriteLine("Strokedir.: Up");
 
@@ -88,7 +88,7 @@ namespace TeledongCommander
                 }
                 else if (currentDirection == StrokeDirection.Down)
                 {
-                    if (position >= previousPosition || DateTime.Now - lastWriteTimePeak > TimeSpan.FromSeconds(0.8))
+                    if (position >= previousPosition || DateTime.UtcNow - lastWriteTimePeak > TimeSpan.FromSeconds(0.8))
                     {
                         Debug.WriteLine("Strokedir.: Down");
 
@@ -101,9 +101,9 @@ namespace TeledongCommander
 
                 if (shouldSendPosition)
                 {
-                    if (DateTime.Now - lastWriteTimePeak < TimeSpan.FromMilliseconds(100) && positionDelta < 0.1)
+                    if (DateTime.UtcNow - lastWriteTimePeak < TimeSpan.FromMilliseconds(100) && positionDelta < 0.1)
                     {
-                        lastWriteTimePeak = DateTime.Now;
+                        lastWriteTimePeak = DateTime.UtcNow;
                         shouldSendPosition = false; // Debouncing
                     }
                 }
@@ -119,7 +119,7 @@ namespace TeledongCommander
 
                 if (shouldSendPosition)
                 {
-                    lastWriteTimePeak = DateTime.Now;
+                    lastWriteTimePeak = DateTime.UtcNow;
                     outputPointBuffer.Enqueue(new StrokerPoint(previousPosition, now));
                 }
             }
@@ -128,7 +128,7 @@ namespace TeledongCommander
             // Process queue and output
             try
             {
-                TimeSpan outputTimeThreshold = DateTime.Now - referenceTime - (SkipFiltering ? TimeSpan.Zero : FilterTime);
+                TimeSpan outputTimeThreshold = DateTime.UtcNow - referenceTime - (SkipFiltering ? TimeSpan.Zero : FilterTime);
 
                 StrokerPoint nextPoint = default;
                 bool shouldOutput = false;
@@ -147,10 +147,10 @@ namespace TeledongCommander
 
                 if (shouldOutput)
                 {
-                    TimeSpan writeDuration = DateTime.Now - lastWriteTime - TimeSpan.FromMilliseconds(10);
+                    TimeSpan writeDuration = DateTime.UtcNow - lastWriteTime - TimeSpan.FromMilliseconds(10);
                     if (writeDuration > TimeSpan.FromMilliseconds(1000))
                         writeDuration = TimeSpan.FromMilliseconds(500);
-                    lastWriteTime = DateTime.Now;
+                    lastWriteTime = DateTime.UtcNow;
 
                     Output?.Invoke(this, new OutputEventArgs(Math.Clamp(nextPoint.Position, 0, 1), writeDuration));
                 }

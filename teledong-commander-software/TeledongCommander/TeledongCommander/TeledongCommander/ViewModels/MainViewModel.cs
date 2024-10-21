@@ -163,9 +163,9 @@ public partial class MainViewModel : ViewModelBase
     System.Timers.Timer sensorReadTimer = new();
     Mutex inputThreadMutex = new();
 
-    DateTime referenceTime = DateTime.Now;
+    DateTime referenceTime = DateTime.UtcNow;
     bool isCalibrating = false;
-    DateTime chartStartTime = DateTime.Now - TimeSpan.FromSeconds(10);
+    DateTime chartStartTime = DateTime.UtcNow - TimeSpan.FromSeconds(10);
     double previousPointerYPosition = 0;
     double position = 0;
     bool skipRead = false;
@@ -308,7 +308,7 @@ public partial class MainViewModel : ViewModelBase
     private void SendPointToInputPositionChart(double newPosition)
     {
         var inputPositionSeriesValues = InputPositionSeries[0].Values!.Cast<ObservablePoint>().ToList();
-        var chartNowTime = (DateTime.Now - chartStartTime);
+        var chartNowTime = (DateTime.UtcNow - chartStartTime);
 
         inputPositionSeriesValues.Add(new ObservablePoint(chartNowTime.TotalSeconds, newPosition));
         var firstPoint = inputPositionSeriesValues.FirstOrDefault();
@@ -346,13 +346,13 @@ public partial class MainViewModel : ViewModelBase
         }
         else
         {
-            //Debug.WriteLine("Warning: Chart. " + chartNowTime + "   " + DateTime.Now);
+            //Debug.WriteLine("Warning: Chart. " + chartNowTime + "   " + DateTime.UtcNow);
         }
     }
 
     private void SendPointToOutputPositionChart(double newPosition)
     {
-        SendPointToOutputPositionChart(newPosition, DateTime.Now);
+        SendPointToOutputPositionChart(newPosition, DateTime.UtcNow);
     }
 
     [RelayCommand]
@@ -699,7 +699,12 @@ public partial class MainViewModel : ViewModelBase
                                 outputDeviceViewModel.FilterTimeMilliseconds = float.Parse(outputDeviceNode.GetAttribute("FilterTime"));
                             }
                             else
-                                outputDeviceViewModel.FilterTimeMilliseconds = 400;
+                            {
+                                if (outputDeviceNode.Name == nameof(HandyStreamApi))
+                                    outputDeviceViewModel.FilterTimeMilliseconds = 400;
+                                else
+                                    outputDeviceViewModel.FilterTimeMilliseconds = 0;
+                            }
 
                             if (outputDeviceNode.HasAttribute("PeakMotionMode"))
                             {

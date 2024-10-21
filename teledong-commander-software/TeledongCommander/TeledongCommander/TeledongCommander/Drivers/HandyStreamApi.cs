@@ -39,10 +39,10 @@ public class HandyStreamApi : OutputDevice
     bool isClosed = false;
     bool successfullyConnected = false;
     //Mutex criticalMessageLock = new Mutex();
-    DateTime previousModeSetTime = DateTime.Now;
+    DateTime previousModeSetTime = DateTime.UtcNow;
     Queue<HspPoint> buffer = new Queue<HspPoint>();
-    DateTime startTime = DateTime.Now;
-    DateTime lastBufferPushTime = DateTime.Now;
+    DateTime startTime = DateTime.UtcNow;
+    DateTime lastBufferPushTime = DateTime.UtcNow;
     int streamId = 100;
     string? apiAuthToken = null;
     bool isPlaying = false;
@@ -51,14 +51,15 @@ public class HandyStreamApi : OutputDevice
     int tailPointStreamIndex = 0;
     int millisecondsDiscrepancy = 0;
     bool hasAdjustedDiscrepancyTime = false;
-    int millisecondsOffset => hasAdjustedDiscrepancyTime ? (int)Processor.FilterTime.TotalMilliseconds : 100;
+    int millisecondsOffset => (int)Processor.FilterTime.TotalMilliseconds; //hasAdjustedDiscrepancyTime ? (int)Processor.FilterTime.TotalMilliseconds : 100;
     bool shouldRestart = false;
     bool alternatePointNoise = false;
-    int numberOfBatchedPoints => (int)Math.Ceiling(Processor.FilterTime.TotalMilliseconds / 400.0);
+    int numberOfBatchedPoints => (int)Math.Ceiling(millisecondsOffset / 500.0);
     int[] previousPoints = { 0, 100, 2 };
     int[] previousCurrentPoints = { -1, -1, -1, -1, -1 };
-    DateTime previousPointTime = DateTime.Now;
+    DateTime previousPointTime = DateTime.UtcNow;
     int previousTime = 0;
+    long clientServerTimeOffset = 100;
     //int previousPoint = -1;
     BackgroundWorker? sseWorker = null;
 
@@ -67,15 +68,18 @@ public class HandyStreamApi : OutputDevice
         Processor.SkipFiltering = true;
         Processor.Output += Processor_Output;
         Processor.PeakMotionMode = false;
-        Processor.FilterTime = TimeSpan.FromMilliseconds(1000);
+        Processor.FilterTime = TimeSpan.FromMilliseconds(400);
         httpClient = new HttpClient();
-        httpClient.Timeout = TimeSpan.FromSeconds(10);
+        httpClient.Timeout = TimeSpan.FromSeconds(6);
     }
 
+    // Receive points from input device
     private async void Processor_Output(object? sender, OutputEventArgs e)
     {
-        if (!IsStarted && !hasStopped)
+        if (!IsStarted )//&& !hasStopped)
             return;
+
+        var now = DateTime.UtcNow;
 
         var flush = false;
         if (shouldRestart)
@@ -112,7 +116,8 @@ public class HandyStreamApi : OutputDevice
                 }
             }
             // Rewind
-            using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/play"))
+            isPlaying = false;
+            /*using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/play"))
             {
                 request.Headers.TryAddWithoutValidation("accept", "application/json");
                 request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
@@ -121,8 +126,8 @@ public class HandyStreamApi : OutputDevice
 
                 var contentRaw = new
                 {
-                    startTime = previousTime + 100, //-(int)(DateTime.Now - benchmarkTime).TotalMilliseconds,
-                    serverTime = ((DateTimeOffset)DateTimeOffset.Now.ToUniversalTime()).ToUnixTimeMilliseconds(),
+                    startTime = DateTime.UtcNow - startTime, //-(int)(DateTime.UtcNow - benchmarkTime).TotalMilliseconds,
+                    serverTime = ((DateTimeOffset)DateTimeOffset.UtcNow.ToUniversalTime()).ToUnixTimeMilliseconds() + clientServerTimeOffset,
                     playbackRate = 1.0,
                     loop = false,
                 };
@@ -134,9 +139,9 @@ public class HandyStreamApi : OutputDevice
                 if (response != null && response.IsSuccessStatusCode)
                 {
                     Debug.WriteLine("START PLAYING " + startTime.ToLongTimeString());
-                    if (!hasStopped)
+                   // if (!hasStopped)
                     {
-                        successfullyConnected = true;
+                        //successfullyConnected = true;
                         Debug.WriteLine(await response.Content.ReadAsStringAsync());
                         isPlaying = true;
                     }
@@ -147,11 +152,8 @@ public class HandyStreamApi : OutputDevice
                     TriggerStatusChanged();
                     Debug.WriteLine("Failed to start playing: " + response?.ToString());
                 }
-            }
+            }*/
         }
-        shouldRestart = false;
-
-        var now = DateTime.Now;
 
         if (!hasInitedStart)
         {
@@ -184,7 +186,7 @@ public class HandyStreamApi : OutputDevice
                             // Add previous identical point if there has been a pause in motion and points have been skipped. Otherwise the reaction is too slow when resuming motion.
                             points.Add(new
                             {
-                                t = (int)(previousPointTime - startTime).TotalMilliseconds + millisecondsOffset - millisecondsDiscrepancy,
+                                t = (int)(previousPointTime - startTime).TotalMilliseconds + millisecondsOffset, // - millisecondsDiscrepancy,
                                 x = previousPoints[0]
                             });
                             tailPointStreamIndex++;
@@ -193,7 +195,7 @@ public class HandyStreamApi : OutputDevice
                         // Add current point
                         points.Add(new
                         {
-                            t = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset - millisecondsDiscrepancy,
+                            t = (int)(point.Time - startTime).TotalMilliseconds + millisecondsOffset, // - millisecondsDiscrepancy,
                             x = x
                         });
                         tailPointStreamIndex++;
@@ -210,7 +212,7 @@ public class HandyStreamApi : OutputDevice
 
                 if (points.Count > 0)
                 {
-                    var benchmarkTime = DateTime.Now;
+                    //var benchmarkTime = DateTime.UtcNow;
                     using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/add"))
                     {
                         request.Headers.TryAddWithoutValidation("accept", "application/json");
@@ -232,7 +234,7 @@ public class HandyStreamApi : OutputDevice
                             //Debug.WriteLine("Putting points: " + points.Count + " time: " + startTime.ToLongTimeString());
                             var response = await httpClient.SendAsync(request);
 
-                            Debug.WriteLine("API roundtrip latency: " + (DateTime.Now - benchmarkTime).TotalMilliseconds);
+                            //Debug.WriteLine("API roundtrip latency: " + (DateTime.UtcNow - benchmarkTime).TotalMilliseconds);
 
                             if (response != null && response.IsSuccessStatusCode)
                             {
@@ -242,12 +244,12 @@ public class HandyStreamApi : OutputDevice
                                 {
                                     if (responseJson.result != null)
                                     {
-                                        if (isPlaying && !hasAdjustedDiscrepancyTime)
+                                        /*if (isPlaying && !hasAdjustedDiscrepancyTime)
                                         {
                                             millisecondsDiscrepancy = responseJson.result.last_point_time - responseJson.result.current_time;// - 1000;
                                             Debug.WriteLine("Timing discrepancy: " + millisecondsDiscrepancy);
                                             hasAdjustedDiscrepancyTime = true;
-                                        }
+                                        }*/
 
                                         var isStalled = true;
                                         for (int i = 0; i < 4; i++)
@@ -306,8 +308,9 @@ public class HandyStreamApi : OutputDevice
                 }
 
 
-                if ((!isPlaying && (DateTime.Now - startTime) > TimeSpan.FromSeconds(1)))
+                if ((!isPlaying))// && (DateTime.UtcNow - startTime) > TimeSpan.FromSeconds(1)))
                 {
+                    isPlaying = true;
                     using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/play"))
                     {
                         request.Headers.TryAddWithoutValidation("accept", "application/json");
@@ -317,8 +320,8 @@ public class HandyStreamApi : OutputDevice
 
                         var contentRaw = new
                         {
-                            startTime = 0, //-(int)(DateTime.Now - benchmarkTime).TotalMilliseconds,
-                            serverTime = ((DateTimeOffset)DateTimeOffset.Now.ToUniversalTime()).ToUnixTimeMilliseconds(),
+                            startTime = (long)(now - startTime).TotalMilliseconds, //-(int)(DateTime.UtcNow - benchmarkTime).TotalMilliseconds,
+                            serverTime = ((DateTimeOffset)DateTimeOffset.UtcNow.ToUniversalTime()).ToUnixTimeMilliseconds() + clientServerTimeOffset,
                             playbackRate = 1.0,
                             loop = false,
                         };
@@ -330,15 +333,16 @@ public class HandyStreamApi : OutputDevice
                         if (response != null && response.IsSuccessStatusCode)
                         {
                             Debug.WriteLine("START PLAYING " + startTime.ToLongTimeString());
-                            if (!hasStopped)
+                            //if (!hasStopped)
                             {
-                                successfullyConnected = true;
+                                //successfullyConnected = true;
                                 Debug.WriteLine(await response.Content.ReadAsStringAsync());
-                                isPlaying = true;
+                                //isPlaying = true;
                             }
                         }
                         else
                         {
+                            isPlaying = false;
                             ErrorMessage = "Failed to start playing...\nTry again.";
                             TriggerStatusChanged();
                             Debug.WriteLine("Failed to start playing: " + response?.ToString());
@@ -354,6 +358,77 @@ public class HandyStreamApi : OutputDevice
         }
     }
 
+    // https://ohdoki.notion.site/Handy-API-v3-ea6c47749f854fbcabcc40c729ea6df4 chapter "Synchronized protocols"
+    public async Task<long> GetClientServerTimeOffset()
+    {
+        const int numSamples = 20;
+        int timeout = 10;
+        var stopwatch = new Stopwatch();
+        long offsetTimeSum = 0;
+
+        for (int i = 0; i < numSamples; i++)
+        {
+            using (var request = new HttpRequestMessage(new HttpMethod("GET"), baseApiUrl + "servertime"))
+            {
+                request.Headers.TryAddWithoutValidation("accept", "application/json");
+                request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
+                //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
+
+                /*var contentRaw = new
+                {
+                    ck = ConnectionKey
+                };
+                request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
+                request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");*/
+
+                stopwatch.Restart();
+                var response = await httpClient.SendAsync(request);
+
+                if (response == null)
+                {
+                    if (timeout-- <= 0)
+                        throw new Exception("Failed to get servertime");
+                    i--;
+                    continue;
+                }
+
+                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    var responseText = await response.Content.ReadAsStringAsync();
+                    var responseJson = System.Text.Json.JsonSerializer.Deserialize<ServertimeApiResponse>(responseText);
+                    if (responseJson != null && responseJson.server_time > 0)
+                    {
+                        stopwatch.Stop();
+                        var clientTime = ((DateTimeOffset)DateTimeOffset.UtcNow.ToUniversalTime()).ToUnixTimeMilliseconds();
+                        var rountripDelay = stopwatch.ElapsedMilliseconds;
+                        Debug.WriteLine("Servertime response: " + responseText);
+                        //if (response.IsSuccessStatusCode)
+                        var serverTime = responseJson.server_time;
+                        var estimatedServerReceiveTime = serverTime + rountripDelay / 2;
+                        var timeOffset = estimatedServerReceiveTime - clientTime;
+                        offsetTimeSum += timeOffset;
+                    }
+                    else
+                    {
+                        if (timeout-- <= 0)
+                            throw new Exception("Failed to get servertime");
+                        i--;
+                        continue;
+                    }
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    throw new Exception("Unauthorized API key");
+                }
+            }
+        }
+
+        var offset = offsetTimeSum / numSamples;
+        Debug.WriteLine("CLIENT-SERVER OFFSET: " + offset.ToString());
+        return offset;
+    }
+
     public override async Task Start()
     {
         if (string.IsNullOrEmpty(ConnectionKey))
@@ -366,9 +441,63 @@ public class HandyStreamApi : OutputDevice
         if (string.IsNullOrEmpty(ApiKey))
             ApiKey = App.UserData["HandyFw4BetaApiKey"] ?? "";
 
-        await SetMode();
-        await SetupStreaming();
-        TriggerStatusChanged();
+        //await SetMode();
+
+        try
+        {
+            clientServerTimeOffset = await GetClientServerTimeOffset();
+            await SetupStreaming();
+            TriggerStatusChanged();
+        }
+        catch (Exception e)
+        {
+            ErrorMessage = "Something went wrong when connecting: " + e.Message;
+            TriggerStatusChanged();
+        }
+    }
+
+    public async Task Authenticate()
+    {
+        if (string.IsNullOrEmpty(apiAuthToken))
+        {
+            Debug.WriteLine("Authenticating...");
+            using (var request = new HttpRequestMessage(new HttpMethod("GET"), baseApiUrl + "auth/token/issue"))
+            {
+                request.Headers.TryAddWithoutValidation("accept", "application/json");
+                //request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
+                request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+
+                var contentRaw = new
+                {
+                    ck = ConnectionKey
+                };
+                request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
+                request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+
+                var response = await httpClient.SendAsync(request);
+
+                if (response == null)
+                    throw new Exception("Failed to get auth response");
+
+                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    var responseText = await response.Content.ReadAsStringAsync();
+                    var responseJson = System.Text.Json.JsonSerializer.Deserialize<AuthenticationApiResponse>(responseText);
+                    if (responseJson != null)
+                    {
+                        Debug.WriteLine("Authentication response: " + responseText);
+                        //if (response.IsSuccessStatusCode)
+                        apiAuthToken = responseJson.token;
+                    }
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    ErrorMessage = "Unauthorized API key, check settings.";
+                    TriggerStatusChanged();
+                    return;
+                }
+            }
+        }
     }
 
     public async Task SetupStreaming()
@@ -388,46 +517,9 @@ public class HandyStreamApi : OutputDevice
         try
         {
             if (string.IsNullOrEmpty(apiAuthToken))
-            {
-                Debug.WriteLine("Authenticating...");
-                using (var request = new HttpRequestMessage(new HttpMethod("GET"), baseApiUrl + "auth/token/issue"))
-                {
-                    request.Headers.TryAddWithoutValidation("accept", "application/json");
-                    //request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
-                    request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
-
-                    var contentRaw = new
-                    {
-                        ck = ConnectionKey
-                    };
-                    request.Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(contentRaw));
-                    request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
-
-                    var response = await httpClient.SendAsync(request);
-
-                    if (response == null)
-                        throw new Exception("Failed to get auth response");
-
-                    if (response.StatusCode == System.Net.HttpStatusCode.OK)
-                    {
-                        var responseText = await response.Content.ReadAsStringAsync();
-                        var responseJson = System.Text.Json.JsonSerializer.Deserialize<AuthenticationApiResponse>(responseText);
-                        if (responseJson != null)
-                        {
-                            Debug.WriteLine("Authentication response: " + responseText);
-                            //if (response.IsSuccessStatusCode)
-                            apiAuthToken = responseJson.token;
-                        }
-                    }
-                    else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    {
-                        ErrorMessage = "Unauthorized API key, check settings.";
-                        TriggerStatusChanged();
-                        return;
-                    }
-                }
-            }
-
+                await Authenticate();
+            if (string.IsNullOrEmpty(apiAuthToken))
+                return;
 
             await Stop();
 
@@ -455,20 +547,20 @@ public class HandyStreamApi : OutputDevice
                     // Todo check for error code
 
                     successfullyConnected = true;
-                    hasStopped = false;
+                    //hasStopped = false;
                     ErrorMessage = null;
                     TriggerStatusChanged();
                 }
             }
 
-//#if DEBUG
+            #if DEBUG
             if (sseWorker == null)
             {
                 sseWorker = new BackgroundWorker();
                 sseWorker.DoWork += SseWorker_DoWork;
                 sseWorker.RunWorkerAsync();
             }
-//#endif
+            #endif
         }
         catch (Exception ex)
         {
@@ -507,7 +599,7 @@ public class HandyStreamApi : OutputDevice
         eventSourceClient.StateChanged += (sender, e) => Debug.WriteLine($"SSE State Changed: {e.ReadyState}");
 
         //while (true)
-        { 
+        {
             try
             {
                 eventSourceClient.Stream().Wait();
@@ -593,7 +685,7 @@ public class HandyStreamApi : OutputDevice
     {
         successfullyConnected = false;
         isPlaying = false;
-        hasStopped = true;
+        //hasStopped = true;
         hasInitedStart = false;
         hasAdjustedDiscrepancyTime = false;
         //httpClient.CancelPendingRequests();
@@ -603,9 +695,19 @@ public class HandyStreamApi : OutputDevice
         try
         {
             // Repeat to make sure there is no race between incoming points
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 2; i++)
             {
                 using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/stop"))
+                {
+                    request.Headers.TryAddWithoutValidation("accept", "application/json");
+                    request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
+                    //request.Headers.TryAddWithoutValidation("X-Api-Key", ApiKey);
+                    request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + apiAuthToken);
+
+                    await httpClient.SendAsync(request);
+
+                }
+                using (var request = new HttpRequestMessage(new HttpMethod("PUT"), baseApiUrl + "hsp/flush"))
                 {
                     request.Headers.TryAddWithoutValidation("accept", "application/json");
                     request.Headers.TryAddWithoutValidation("X-Connection-Key", ConnectionKey);
@@ -673,6 +775,13 @@ public class HandyStreamApi : OutputDevice
         public string message { get; set; }
         public bool connected { get; set; }
     }
+
+
+    public class ServertimeApiResponse
+    {
+        public long server_time { get; set; }
+    }
+
 
 
 }

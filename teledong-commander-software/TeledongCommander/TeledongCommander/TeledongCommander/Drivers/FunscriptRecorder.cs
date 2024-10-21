@@ -20,17 +20,17 @@ namespace TeledongCommander
 
         public string OutputPath { get; set; }
         public bool IsRecording { get; set; } = false;
-        public TimeSpan RecordingDuration => IsRecording ? (DateTime.Now - startTime) : TimeSpan.Zero;
+        public TimeSpan RecordingDuration => IsRecording ? (DateTime.UtcNow - startTime) : TimeSpan.Zero;
         public TimeSpan TimeShiftForward { get; set; } = TimeSpan.Zero;
         public double MaximumRange { get; set; } = 1.0;
         public double MinimumRange { get; set; } = 0.0;
 
-        DateTime startTime = DateTime.Now;
+        DateTime startTime = DateTime.UtcNow;
         List<FunscriptPoint> points = new List<FunscriptPoint>();
 
         public FunscriptRecorder() : base()
         {
-            OutputPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), $"teledong_{DateTime.Now.ToShortDateString()}.funscript");
+            OutputPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), $"teledong_{DateTime.UtcNow.ToShortDateString()}.funscript");
 
             Processor.Output += Processor_Output;
         }
@@ -40,7 +40,7 @@ namespace TeledongCommander
             if (!IsRecording)
                 return;
 
-            points.Add(new FunscriptPoint(e.Position, DateTime.Now - startTime));
+            points.Add(new FunscriptPoint(e.Position, DateTime.UtcNow - startTime));
         }
 
         public override async Task Start()
@@ -63,7 +63,7 @@ namespace TeledongCommander
                 return; //Todo notify error
 
             points.Clear();
-            startTime = DateTime.Now;
+            startTime = DateTime.UtcNow;
             IsRecording = true;
             TriggerStatusChanged();
         }
