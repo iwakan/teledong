@@ -158,6 +158,7 @@ public class HandyStreamApi : OutputDevice
             lastBufferPushTime = now;
             startTime = now;
             hasInitedStart = true;
+            flush = true;
         }
 
         // Record point in buffer
@@ -355,6 +356,13 @@ public class HandyStreamApi : OutputDevice
 
     public override async Task Start()
     {
+        if (string.IsNullOrEmpty(ConnectionKey))
+        {
+            ErrorMessage = "Please enter a connection key before connecting.";
+            TriggerStatusChanged();
+            return;
+        }
+
         if (string.IsNullOrEmpty(ApiKey))
             ApiKey = App.UserData["HandyFw4BetaApiKey"] ?? "";
 
@@ -453,14 +461,14 @@ public class HandyStreamApi : OutputDevice
                 }
             }
 
-#if DEBUG
+//#if DEBUG
             if (sseWorker == null)
             {
                 sseWorker = new BackgroundWorker();
                 sseWorker.DoWork += SseWorker_DoWork;
                 sseWorker.RunWorkerAsync();
             }
-#endif
+//#endif
         }
         catch (Exception ex)
         {

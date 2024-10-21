@@ -1,0 +1,12 @@
+Need Dotnet.Bundle package from nuget in the desktop project
+
+Set parameters at the bottom of Desktop csproj file.
+
+dotnet restore -r osx-x64
+dotnet msbuild -t:BundleApp -p:RuntimeIdentifier=osx-x64 -p:Configuration=Release -p:SelfContained=true -p:UseAppHost=true
+
+Place Icon.tcns into Resources folder of app if not already there
+Place embedded.provisionprofile into app Contents folder. Profile is just a normal profile renamed to embedded.*
+Transfer to mac
+chmod +x Teledong\ Commander.app/Contents/MacOS/TeledongCommander.Desktop
+./TeledongCommanderSign.sh

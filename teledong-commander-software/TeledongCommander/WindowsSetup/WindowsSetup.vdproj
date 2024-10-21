@@ -15,7 +15,13 @@
     {
         "Entry"
         {
-        "MsmKey" = "8:_BAC0014A49274C33868BA7DF0E70EC5B"
+        "MsmKey" = "8:_1C5E57CB098A4E338AB601B29AE90E5F"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_DC0E6013C92546138B9613293753D380"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -116,6 +122,26 @@
         }
         "File"
         {
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_1C5E57CB098A4E338AB601B29AE90E5F"
+            {
+            "SourcePath" = "8:..\\TeledongCommander\\Media\\icon.ico"
+            "TargetName" = "8:icon.ico"
+            "Tag" = "8:"
+            "Folder" = "8:_871A99F76C704DCB8BC07902AA6A4F1A"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
         }
         "FileType"
         {
@@ -172,15 +198,15 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:Teledong Commander"
-        "ProductCode" = "8:{DE1066EC-7D7D-403D-9AE1-7E46C77EE736}"
-        "PackageCode" = "8:{240563D1-495B-4BCB-9DA4-C848C635E12A}"
+        "ProductCode" = "8:{9DD2436A-9DCC-4852-AD62-DE2FA658D5D8}"
+        "PackageCode" = "8:{9D68CE57-500B-4760-AB0C-CEC955E72251}"
         "UpgradeCode" = "8:{FBFDEDF8-3913-447C-8172-19CEA7A47B1E}"
         "AspNetVersion" = "8:2.0.50727.0"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:FALSE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:TRUE"
-        "ProductVersion" = "8:0.4.0"
+        "ProductVersion" = "8:0.9.1"
         "Manufacturer" = "8:Teledong"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:https://teledong.com"
@@ -190,7 +216,7 @@
         "Keywords" = "8:"
         "ARPCOMMENTS" = "8:"
         "ARPURLINFOABOUT" = "8:https://teledong.com"
-        "ARPPRODUCTICON" = "8:"
+        "ARPPRODUCTICON" = "8:_1C5E57CB098A4E338AB601B29AE90E5F"
         "ARPIconIndex" = "3:0"
         "SearchPath" = "8:"
         "UseSystemSearchPath" = "11:TRUE"
@@ -293,7 +319,7 @@
         }
         "Shortcut"
         {
-            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_ADDE5C3C1A7E45B98892F2DA13FC2BBF"
+            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_1F6D67DCD9944D93A31CBE3D850AAB26"
             {
             "Name" = "8:Teledong Commander"
             "Arguments" = "8:"
@@ -301,10 +327,24 @@
             "ShowCmd" = "3:1"
             "IconIndex" = "3:0"
             "Transitive" = "11:FALSE"
-            "Target" = "8:_BAC0014A49274C33868BA7DF0E70EC5B"
+            "Target" = "8:_DC0E6013C92546138B9613293753D380"
             "Folder" = "8:_41E2030D18964A5695B145F401116495"
             "WorkingFolder" = "8:_871A99F76C704DCB8BC07902AA6A4F1A"
-            "Icon" = "8:"
+            "Icon" = "8:_1C5E57CB098A4E338AB601B29AE90E5F"
+            "Feature" = "8:"
+            }
+            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_213A47771B4C463F9C5991B7F0133618"
+            {
+            "Name" = "8:Teledong Commander"
+            "Arguments" = "8:"
+            "Description" = "8:"
+            "ShowCmd" = "3:1"
+            "IconIndex" = "3:0"
+            "Transitive" = "11:FALSE"
+            "Target" = "8:_DC0E6013C92546138B9613293753D380"
+            "Folder" = "8:_30872669AB8549D9BC50B50E684AF8A8"
+            "WorkingFolder" = "8:_871A99F76C704DCB8BC07902AA6A4F1A"
+            "Icon" = "8:_1C5E57CB098A4E338AB601B29AE90E5F"
             "Feature" = "8:"
             }
         }
@@ -706,9 +746,9 @@
         }
         "ProjectOutput"
         {
-            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_520C16B32C614F53BE4546FCCA46F0C3"
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_DC0E6013C92546138B9613293753D380"
             {
-            "SourcePath" = "8:"
+            "SourcePath" = "8:..\\TeledongCommander\\TeledongCommander.Desktop\\bin\\Release\\net8.0\\publish\\win-x64\\TeledongCommander.Desktop.exe"
             "TargetName" = "8:"
             "Tag" = "8:"
             "Folder" = "8:_871A99F76C704DCB8BC07902AA6A4F1A"
@@ -726,38 +766,11 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             "ProjectOutputGroupRegister" = "3:1"
-            "OutputConfiguration" = "8:"
-            "OutputGroupCanonicalName" = "8:LocalizedResourceDlls"
-            "OutputProjectGuid" = "8:{2AF4C58C-9B02-414B-87A1-80CA2DE25592}"
-            "ShowKeyOutput" = "11:TRUE"
-                "ExcludeFilters"
-                {
-                }
-            }
-            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_BAC0014A49274C33868BA7DF0E70EC5B"
-            {
-            "SourcePath" = "8:..\\TeledongCommander\\TeledongCommander.Desktop\\obj\\Release\\net8.0\\apphost.exe"
-            "TargetName" = "8:"
-            "Tag" = "8:"
-            "Folder" = "8:_871A99F76C704DCB8BC07902AA6A4F1A"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            "ProjectOutputGroupRegister" = "3:1"
-            "OutputConfiguration" = "8:"
+            "OutputConfiguration" = "8:Release|Any CPU"
             "OutputGroupCanonicalName" = "8:PublishItems"
             "OutputProjectGuid" = "8:{2AF4C58C-9B02-414B-87A1-80CA2DE25592}"
             "ShowKeyOutput" = "11:TRUE"
+            "PublishProfilePath" = "8:Properties\\PublishProfiles\\FolderProfile.pubxml"
                 "ExcludeFilters"
                 {
                 }

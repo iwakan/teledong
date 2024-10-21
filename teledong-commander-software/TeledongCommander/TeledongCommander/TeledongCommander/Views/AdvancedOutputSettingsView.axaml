@@ -16,7 +16,7 @@
 		<TextBlock Text="Advanced Settings" FontWeight="SemiBold"/>
 		<StackPanel Spacing="10" Margin="0,30,0,0">
 			
-			<ToggleSwitch OffContent="Peaks-only motion mode" OnContent="Peaks-only motion mode" IsChecked="{Binding PeakMotionMode}" ToolTip.Tip="In 'Peak' motion mode, the position is written only as the direction of motion changes. This results in more jagged motion, but should work better if the connection to the device has limited bandwidth or high latency, such as connections over the internet. For local connections, 'continuous' mode is preferred as the motion is smoother and more accurate."></ToggleSwitch>
+			<ToggleSwitch OffContent="Peaks-only motion mode" OnContent="Peaks-only motion mode" IsChecked="{Binding PeakMotionMode}" ToolTip.Tip="In 'peaks-only' motion mode, the position is sent to the stroker only as the direction of motion changes. This results in more jagged motion, but should work better if the connection to the device has very limited bandwidth or high latency. Normally, disabling this is preferred as the motion is smoother and more accurate."></ToggleSwitch>
 			<!--<TextBlock Text="{Binding ReadInterval, StringFormat='Read interval: {0:0} ms'}" />
 			<Slider Value="{Binding ReadInterval}" Minimum="5" Maximum="150"/>-->
 			<!--<TextBlock Text="{Binding WriteInterval, StringFormat='Write interval: {0:0} ms'}" Height="25" Margin="0,0,0,-15"/>
@@ -26,10 +26,10 @@
 			<TextBlock Text="{Binding WriteCommandDuration, StringFormat='Write command duration: {0:0} ms'}" Height="25" Margin="0,0,0,-15"/>
 			<Slider Value="{Binding WriteCommandDuration}" Minimum="10" Maximum="500" Height="35" />
 			-->
-			<TextBlock Text="{Binding FilterTimeMilliseconds, StringFormat='Latency (filter time): {0:0} ms'}" ToolTip.Tip="This is the duration of data that is buffered and filtered before being send to the output device. Smaller values will result in less latency, but can cause jitter/stuttering on strokers. Default: 0ms" Height="25" Margin="0,0,0,-15"/>
+			<TextBlock Text="{Binding FilterTimeMilliseconds, StringFormat='Latency: {0:0} ms'}" ToolTip.Tip="This is the duration of data that is buffered/filtered before being send to the output device. You can use this to add latency to match a video stream or similar. NB: On online connections, too low latency can cause stuttering on strokers or even connection failure." Height="25" Margin="0,0,0,-15"/>
 			<Grid>
 				<Button Content="-" Command="{Binding DecreaseFilterLatencyCommand}" HorizontalAlignment="Left" VerticalAlignment="Center" Height="28"/>
-				<Slider Value="{Binding FilterTimeMilliseconds}" VerticalAlignment="Center" Minimum="0" Margin="40,-5,40,4" HorizontalAlignment="Stretch" Maximum="15000" LargeChange="1000" SmallChange="100" ToolTip.Tip="This is the duration of data that is buffered and filtered before being send to the output device. Shorter values will result in less latency, but can cause jitter/stuttering on strokers. Default: 0ms" Height="35" />
+				<Slider Value="{Binding FilterTimeMilliseconds}" VerticalAlignment="Center" Minimum="0" Margin="40,-5,40,4" HorizontalAlignment="Stretch" Maximum="15000" LargeChange="1000" SmallChange="100" ToolTip.Tip="This is the duration of data that is buffered/filtered before being send to the output device. You can use this to add latency to match a video stream or similar. NB: On online connections, too low latency can cause stuttering on strokers or even connection failure." Height="35" />
 				<Button Content="+" Command="{Binding IncreaseFilterLatencyCommand}" HorizontalAlignment="Right" VerticalAlignment="Center" Height="28"/>
 			</Grid>
 			

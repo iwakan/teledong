@@ -25,6 +25,9 @@ public partial class OutputDeviceViewModel : ViewModelBase
     private Brush _statusLabelBrush = new SolidColorBrush(Colors.LightGray);
 
     [ObservableProperty]
+    private bool _hasError = false;
+
+    [ObservableProperty]
     private bool _isStarted = false;
 
     //[ObservableProperty]
@@ -118,22 +121,7 @@ public partial class OutputDeviceViewModel : ViewModelBase
     {
         IsStarted = OutputDevice.IsStarted;
         Error = OutputDevice.ErrorMessage;
-
-        if (OutputDevice.HasError)
-        {
-            StatusLabelBrush = new SolidColorBrush(Colors.Orange);
-            StatusLabelSymbol = "⚠";
-        }
-        else if (OutputDevice.IsStarted)
-        {
-            StatusLabelBrush = new SolidColorBrush(Colors.MediumSeaGreen);
-            StatusLabelSymbol = "🗹";
-        }
-        else
-        {
-            StatusLabelBrush = new SolidColorBrush(Colors.LightGray);
-            StatusLabelSymbol = "☐";
-        }
+        HasError = OutputDevice.HasError;
     }
 
     ~OutputDeviceViewModel()

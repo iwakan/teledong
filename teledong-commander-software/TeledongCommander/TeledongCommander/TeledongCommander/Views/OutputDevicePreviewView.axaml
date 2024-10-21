@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:TeledongCommander.ViewModels"
+			 xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="45" Height="45"
 			 x:DataType="vm:OutputDeviceViewModel"
              x:Class="TeledongCommander.OutputDevicePreviewView">
@@ -17,7 +18,9 @@
 		  <TextBlock Text="{Binding Title}"></TextBlock>
 		  <TextBlock Text="{Binding SecondaryTitle}" Opacity="0.6" VerticalAlignment="Bottom" HorizontalAlignment="Left" ></TextBlock>
 
-		  <TextBlock Text="{Binding StatusLabelSymbol}" Foreground="{Binding StatusLabelBrush}" FontSize="30" HorizontalAlignment="Right" VerticalAlignment="Center"></TextBlock>
+		  <materialIcons:MaterialIcon Kind="CheckCircle" ToolTip.Tip="Device is active and receiving motion!" IsVisible="{Binding IsStarted}" Height="30" Width="30" Foreground="MediumSeaGreen" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+		  <materialIcons:MaterialIcon Kind="StopAlert" ToolTip.Tip="Device is inactive. Please connect." IsVisible="{Binding !IsStarted}" Height="30" Width="30" Foreground="Gray" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+		  <materialIcons:MaterialIcon Kind="Warning" ToolTip.Tip="Error/warning occurred." IsVisible="{Binding HasError}" Height="30" Width="30" Foreground="Orange" Margin="0,0,30,0" HorizontalAlignment="Right" VerticalAlignment="Center"/>
 	  </Grid>
   </Border>
 </UserControl>

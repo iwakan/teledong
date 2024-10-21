@@ -27,7 +27,7 @@ namespace TeledongCommander.ViewModels;
 public partial class MainViewModel : ViewModelBase
 {
     [ObservableProperty]
-    private string _inputDeviceStatusText = "";
+    private string _inputDeviceStatusText = "Not connected";
 
     [ObservableProperty]
     private bool _canClickConnectInputDeviceButton = true;
@@ -48,6 +48,9 @@ public partial class MainViewModel : ViewModelBase
     private string? _teledongFirmwareVersion = null;
 
     [ObservableProperty]
+    private bool _teledongIsCalibrating = false;
+
+    [ObservableProperty]
     private bool _teledongHasBadCalibration = false;
 
     [ObservableProperty]
@@ -66,7 +69,7 @@ public partial class MainViewModel : ViewModelBase
     {
         "The Handy Key",
         "Funscript Recorder",
-        "Local server"
+        "Intiface/Buttplug.io"
     };
 
     [ObservableProperty]
@@ -185,6 +188,8 @@ public partial class MainViewModel : ViewModelBase
             }
         };
 
+        OutputDevices.CollectionChanged += (sender, e) => { OnPropertyChanged(nameof(HasOutputDevices)); };
+
         sensorReadTimer.Interval = 50;
         sensorReadTimer.Elapsed += SensorReadTimer_Tick;
 
@@ -195,14 +200,19 @@ public partial class MainViewModel : ViewModelBase
         InputDevice = InputDevices.Teledong;
     }
 
+
     private void UpdateUiStatus()
     {
+        TeledongIsCalibrating = false;
         if (InputDeviceIsTeledong)
         {
             if (teledongApi.State == TeledongState.NotConnected)
                 InputDeviceStatusText = "Not connected";
             else if (teledongApi.State == TeledongState.Calibrating)
+            {
                 InputDeviceStatusText = "Teledong connected, calibrating...";
+                TeledongIsCalibrating = true;
+            }
             else if (teledongApi.State == TeledongState.Ok)
                 InputDeviceStatusText = "Teledong connected, OK";
             else if (teledongApi.State == TeledongState.Error)
@@ -231,6 +241,8 @@ public partial class MainViewModel : ViewModelBase
     // Where the magic starts. Sample input and send to output devices.
     private void SensorReadTimer_Tick(object? sender, ElapsedEventArgs e)
     {
+        UpdateUiStatus();
+
         if (isCalibrating || !inputThreadMutex.WaitOne(10))
             return;
 
@@ -350,13 +362,23 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void ShowHelp()
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "https://teledong.com/teledong-commander#tutorial",
+            UseShellExecute = true
+        });
+    }
+
+    [RelayCommand]
     private void ToggleAdvancedOutputSettings()
     {
         AdvancedOutputSettingsAreOpen = !AdvancedOutputSettingsAreOpen;
     }
 
     [RelayCommand]
-    private async void ConnectInputDevice()
+    private async Task ConnectInputDevice()
     {
         if (InputDeviceIsTeledong)
         {
@@ -408,6 +430,8 @@ public partial class MainViewModel : ViewModelBase
         var outputDevicePreviewView = new OutputDevicePreviewView();
         outputDevicePreviewView.DataContext = outputDeviceViewModel;
         OutputDevices.Add(outputDeviceViewModel);
+
+        SelectedOutputDevice = outputDeviceViewModel;
     }
 
     private OutputDeviceViewModel? AddOutputDeviceManually(string typeId)
@@ -426,6 +450,9 @@ public partial class MainViewModel : ViewModelBase
         outputDeviceViewModel.Removed += OnOutputDeviceRemoved;
 
         OutputDevices.Add(outputDeviceViewModel);
+
+        if (OutputDevices.Count == 1)
+            SelectedOutputDevice = outputDeviceViewModel;
 
         return outputDeviceViewModel;
     }
@@ -602,7 +629,7 @@ public partial class MainViewModel : ViewModelBase
     {
         Process.Start(new ProcessStartInfo
         {
-            FileName = "https://teledong.com/teledong-commander",
+            FileName = "https://teledong.com/teledong-commander#download",
             UseShellExecute = true
         });
     }
