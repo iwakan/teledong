@@ -270,6 +270,12 @@ public class Teledong
                     {
                         if (normalizeToCalibration)
                         {
+                            if (calibrationHighValues[i] <= calibrationLowValues[i])
+                            {
+                                // Invalid calibration, maybe faulty sensor, ignore this reading.
+                                continue;
+                            }
+
                             var calibratedValue = (value - calibrationLowValues[i]) / (float)(calibrationHighValues[i] - calibrationLowValues[i]);
 
                             if (calibratedValue < -0.3 || calibratedValue > 1.3)

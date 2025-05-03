@@ -302,8 +302,16 @@ class Teledong {
             let sensorValues = this.parseSensorValuePacket(data);
 			
 			if (normalizeToCalibration) {
+				let offset = 0;
 				for (let i = 0; i < sensorValues.length; i++) {
-					let calibratedValue = (sensorValues[i] - this.calibrationLowValues[i]) / (this.calibrationHighValues[i] - this.calibrationLowValues[i]);
+					if ((this.calibrationHighValues[i + offset] <= this.calibrationLowValues[i + offset]))
+					{
+						// Invalid calibration, maybe faulty sensor, ignore this reading.
+						sensorValues.splice(i,i);
+						offset++;
+						continue;
+					}
+					let calibratedValue = (sensorValues[i] - this.calibrationLowValues[i + offset]) / (this.calibrationHighValues[i + offset] - this.calibrationLowValues[i + offset]);
 
 					if (calibratedValue < -0.3 || calibratedValue > 1.3) 
 						calibrationOkFlag = false;
