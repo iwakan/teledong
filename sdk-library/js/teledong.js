@@ -80,13 +80,95 @@ class Teledong {
 
         let totalValue = 0;
         let lastDetectionIndex = 0;
+		let obscuredThreshold = 0.5;
 
         for (let i = 0; i < sensorValues.length; i++) {
             let value = sensorValues[sensorValues.length - 1 - i];
             if (this.sunlightMode) 
 				value = 1 - value;
+			
+			// Smooth with neighbor sensors to mitigate sensor outlines
+			if (i == 0)
+			{
+				// Top sensor, don't smooth
+			}
+			else if (i == 1)
+			{
+				// Second top sensor, smooth with two neighboring sensors
+				let previousValue = sensorValues[sensorValues.length - 1 - i + 1]; // Reversed order for easier calculation
+				let nextValue = sensorValues[sensorValues.length - 1 - i - 1]; // Reversed order for easier calculation
+				if (this.sunlightMode)
+				{
+					previousValue = 1 - previousValue;
+					nextValue = 1 - nextValue;
+				}
 
-            if (value > 0.5) {
+				let numObscured = 0;
+				let isObscured = (value > obscuredThreshold);
+				if (isObscured)
+					numObscured++;
+				if (previousValue > obscuredThreshold)
+					numObscured++;
+				if (nextValue > obscuredThreshold)
+					numObscured++;
+				if ((isObscured && numObscured <= 1) || (!isObscured && numObscured >= 2))
+					value = (value + previousValue + nextValue) / 3.0;
+
+			}
+			else if (i == sensorValues.length - 1)
+			{
+				// Bottom sensor, smooth with three above it
+				let previousValue1 = sensorValues[sensorValues.length - 1 - i + 1]; // Reversed order for easier calculation
+				let previousValue2 = sensorValues[sensorValues.length - 1 - i + 2]; // Reversed order for easier calculation
+				let previousValue3 = sensorValues[sensorValues.length - 1 - i + 3]; // Reversed order for easier calculation
+				if (this.sunlightMode)
+				{
+					previousValue1 = 1 - previousValue1;
+					previousValue2 = 1 - previousValue2;
+					previousValue3 = 1 - previousValue3;
+				}
+
+				let numObscured = 0;
+				let isObscured = (value > obscuredThreshold);
+				if (isObscured)
+					numObscured++;
+				if (previousValue1 > obscuredThreshold)
+					numObscured++;
+				if (previousValue2 > obscuredThreshold)
+					numObscured++;
+				if (previousValue3 > obscuredThreshold)
+					numObscured++;
+				if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
+					value = (value + previousValue1 + previousValue2 + previousValue3) / 4.0;
+			}
+			else
+			{
+				// Middle sensor, smooth with three neighboring sensors
+				let previousValue1 = sensorValues[sensorValues.length - 1 - i + 1]; // Reversed order for easier calculation
+				let previousValue2 = sensorValues[sensorValues.length - 1 - i + 2]; // Reversed order for easier calculation
+				let nextValue = sensorValues[sensorValues.length - 1 - i - 1]; // Reversed order for easier calculation
+				if (this.sunlightMode)
+				{
+					previousValue1 = 1 - previousValue1;
+					previousValue2 = 1 - previousValue2;
+					nextValue = 1 - nextValue;
+				}
+
+				let numObscured = 0;
+				let isObscured = (value > obscuredThreshold);
+				if (isObscured)
+					numObscured++;
+				if (previousValue1 > obscuredThreshold)
+					numObscured++;
+				if (previousValue2 > obscuredThreshold)
+					numObscured++;
+				if (nextValue > obscuredThreshold)
+					numObscured++;
+				if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
+					value = (value + previousValue1 + previousValue2 + nextValue) / 4.0;
+			}
+
+            if (value > obscuredThreshold) {
                 totalValue = i;
                 lastDetectionIndex = i;
             } else if (i - lastDetectionIndex >= 2) {
@@ -166,6 +248,8 @@ class Teledong {
         this.State = TeledongState.Calibrating;
 
         console.log("Calibrating Teledong for number of seconds: " + durationSeconds);
+		
+		await new Promise(resolve => setTimeout(resolve, 30));
 
         let duration = durationSeconds * 1000; // Convert to milliseconds
 
@@ -341,17 +425,17 @@ class Teledong {
     async sendCommand(command, extraData = []) {
         if (!this.device) 
 			throw new Error('Device is not connected.');
+		
+		let payload = new Uint8Array([0x54, 0x43, command, ...extraData]);
+		await this.device.transferOut(this.endpointOut, payload);
+		let result = await this.device.transferIn(this.endpointIn, 64);
+		let response = new Uint8Array(result.data.buffer);
 
-        let payload = new Uint8Array([0x54, 0x43, command, ...extraData]);
-        await this.device.transferOut(this.endpointOut, payload);
-        let result = await this.device.transferIn(this.endpointIn, 64);
-        let response = new Uint8Array(result.data.buffer);
-
-        if (response.length >= 3 && response[0] === 0x54 && response[1] === 0x52 && response[2] === command) {
-            return response;
-        } else {
-            throw new Error('Unexpected response from USB command.');
-        }
+		if (response.length >= 3 && response[0] === 0x54 && response[1] === 0x52 && response[2] === command) {
+			return response;
+		} else {
+			throw new Error('Unexpected response from USB command.');
+		}
     }
 
     /// Parses a USB packet response from the mcu with sensor values (header TR1), and returns a list of all the values, from 0-255.
