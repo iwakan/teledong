@@ -47,8 +47,8 @@
 		<CFBundleName>TeledongCommander</CFBundleName>
 		<CFBundleDisplayName>Teledong Commander</CFBundleDisplayName>
 		<CFBundleIdentifier>com.teledong.commander</CFBundleIdentifier>
-		<CFBundleVersion>0.9.1</CFBundleVersion>
-		<CFBundleShortVersionString>0.9.1</CFBundleShortVersionString>
+		<CFBundleVersion>1.0.0</CFBundleVersion>
+		<CFBundleShortVersionString>1.0.0</CFBundleShortVersionString>
 		<CFBundlePackageType>APPL</CFBundlePackageType>
 		<CFBundleSignature>????</CFBundleSignature>
 		<CFBundleExecutable>TeledongCommander.Desktop</CFBundleExecutable>

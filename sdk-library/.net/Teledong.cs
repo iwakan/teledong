@@ -161,7 +161,7 @@ public class Teledong
                 value = 1 - value;
             }
 
-            // Smooth / triplicate to mitigate sensor outlines
+            // Smooth with neighbor sensors to mitigate sensor outlines
             if (i == 0)
             {
                 // Top sensor, don't smooth
