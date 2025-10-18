@@ -23,6 +23,10 @@ class Teledong {
         this.badCalibrationThreshold = 200;
 		this.endpointIn = 1;
 		this.endpointOut = 1;
+		this.sensorObscuredThreshold = 0.4;
+		this.coveredSensorTimestampsRef = {};
+		this.coveredSensorTimestampsRef.current = [];
+		this.previousSensorIndex = 0;
     }
 
     /// Scans for and connects to the Teledong over USB. Must be called before any other method.
@@ -63,6 +67,7 @@ class Teledong {
             return false;
         }
     }
+	
 
     /// Gets the current position of the sensor array, normalized based on the current calibration.
     /// Should be called at a regular interval. It is recommended to use a timer interval around ~50ms, in order for some optional features such as KeepPositionAtRelease to work properly.
@@ -71,135 +76,116 @@ class Teledong {
         if (!this.device) 
 			throw new Error('Device is not connected.');
 
-        let sensorValues = await this.getRawSensorValues();
-
-        if (sensorValues.length === 0) {
+        let rawSensorValues = await this.getRawSensorValues();
+        if (rawSensorValues.length === 0) {
             this.State = TeledongState.Error;
             throw new Error('Unexpected result: 0 sensor values returned.');
         }
+		
+		let sensorValues = rawSensorValues.map((value, i) => {return this.getFinalSensorValue(i, rawSensorValues);});
 
-        let totalValue = 0;
-        let lastDetectionIndex = 0;
-		let obscuredThreshold = 0.5;
+		const coveredSensors = sensorValues.map(value => value > this.sensorObscuredThreshold);
 
-        for (let i = 0; i < sensorValues.length; i++) {
-            let value = sensorValues[sensorValues.length - 1 - i];
-            if (this.sunlightMode) 
-				value = 1 - value;
-			
-			// Smooth with neighbor sensors to mitigate sensor outlines
-			if (i == 0)
-			{
-				// Top sensor, don't smooth
+		const now = performance.now();
+
+		for (let i = 0; i < coveredSensors.length; i++) {
+			if (coveredSensors[i] && this.coveredSensorTimestampsRef.current[i] === -1) {
+				this.coveredSensorTimestampsRef.current[i] = now;
 			}
-			else if (i == 1)
-			{
-				// Second top sensor, smooth with two neighboring sensors
-				let previousValue = sensorValues[sensorValues.length - 1 - i + 1]; // Reversed order for easier calculation
-				let nextValue = sensorValues[sensorValues.length - 1 - i - 1]; // Reversed order for easier calculation
-				if (this.sunlightMode)
-				{
-					previousValue = 1 - previousValue;
-					nextValue = 1 - nextValue;
+			if (!coveredSensors[i]) {
+				this.coveredSensorTimestampsRef.current[i] = -1;
+			}
+		}
+
+		// Mark all sensors that have been covered for 300+ milliseconds as static
+		const staticCoveredSensors = sensorValues.map((v, i) => {
+			return coveredSensors[i] && (now - this.coveredSensorTimestampsRef.current[i] >= 300);
+		});
+
+		let totalCoveredSensors = 0;
+		let totalStaticCoveredSensors = 0;
+		for (let i = 0; i < sensorValues.length; i++) {
+			if (coveredSensors[i]) {
+				totalCoveredSensors++;
+			}
+			if (staticCoveredSensors[i]) {
+				totalStaticCoveredSensors++;
+			}
+		}
+
+		let islands = [];
+		let currentIsland = { indices: [] };
+
+		// Find adjacent covered sensors and group them into islands
+		for (let i = 0; i < coveredSensors.length; i++) {
+			if (coveredSensors[i]) {
+				currentIsland.indices.push(i);
+			} else if (currentIsland.indices.length > 0) {
+				islands.push(currentIsland);
+				currentIsland = { indices: [], static: false };
+			}
+		}
+		if (currentIsland.indices.length > 0) {
+			islands.push(currentIsland);
+		}
+
+		// If there are more than 1 island and there is a 1-sensor-island at the very bottom, remove the bottom island
+		islands = islands.filter(island => {
+			if (islands.length > 1 && island.indices.length === 1 && island.indices[0] === 0) {
+				return false;
+			}
+			return true;
+		});
+
+		// Determine which islands are static, based on the sensors that are marked as static
+		for (let island of islands) {
+			let nonStaticCount = 0;
+			let staticCount = 0;
+			for (let index of island.indices) {
+				if (staticCoveredSensors[index]) {
+					staticCount++;
+				} else {
+					nonStaticCount++;
 				}
-
-				let numObscured = 0;
-				let isObscured = (value > obscuredThreshold);
-				if (isObscured)
-					numObscured++;
-				if (previousValue > obscuredThreshold)
-					numObscured++;
-				if (nextValue > obscuredThreshold)
-					numObscured++;
-				if ((isObscured && numObscured <= 1) || (!isObscured && numObscured >= 2))
-					value = (value + previousValue + nextValue) / 3.0;
-
 			}
-			else if (i == sensorValues.length - 1)
-			{
-				// Bottom sensor, smooth with three above it
-				let previousValue1 = sensorValues[sensorValues.length - 1 - i + 1]; // Reversed order for easier calculation
-				let previousValue2 = sensorValues[sensorValues.length - 1 - i + 2]; // Reversed order for easier calculation
-				let previousValue3 = sensorValues[sensorValues.length - 1 - i + 3]; // Reversed order for easier calculation
-				if (this.sunlightMode)
-				{
-					previousValue1 = 1 - previousValue1;
-					previousValue2 = 1 - previousValue2;
-					previousValue3 = 1 - previousValue3;
-				}
+			island.static = staticCount >= island.indices.length / 2 && nonStaticCount < sensorValues.length * 0.15;
+		}
 
-				let numObscured = 0;
-				let isObscured = (value > obscuredThreshold);
-				if (isObscured)
-					numObscured++;
-				if (previousValue1 > obscuredThreshold)
-					numObscured++;
-				if (previousValue2 > obscuredThreshold)
-					numObscured++;
-				if (previousValue3 > obscuredThreshold)
-					numObscured++;
-				if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
-					value = (value + previousValue1 + previousValue2 + previousValue3) / 4.0;
+		// Select the first non-static island
+		let foundIsland = islands.find(island => !island.static);
+
+		// If there are only static islands, select the island closest to our previous position
+		if (!foundIsland && islands.length > 0) {
+			const closestIslands = islands.slice().sort((a, b) => {
+				return Math.abs(a.indices[0] - this.previousSensorIndex) - Math.abs(b.indices[0] - this.previousSensorIndex);
+			});
+			if (Math.abs(closestIslands[0].indices[0] - this.previousSensorIndex) < sensorValues.length * 0.4) {
+				foundIsland = closestIslands[0];
 			}
-			else
-			{
-				// Middle sensor, smooth with three neighboring sensors
-				let previousValue1 = sensorValues[sensorValues.length - 1 - i + 1]; // Reversed order for easier calculation
-				let previousValue2 = sensorValues[sensorValues.length - 1 - i + 2]; // Reversed order for easier calculation
-				let nextValue = sensorValues[sensorValues.length - 1 - i - 1]; // Reversed order for easier calculation
-				if (this.sunlightMode)
-				{
-					previousValue1 = 1 - previousValue1;
-					previousValue2 = 1 - previousValue2;
-					nextValue = 1 - nextValue;
-				}
+		}
 
-				let numObscured = 0;
-				let isObscured = (value > obscuredThreshold);
-				if (isObscured)
-					numObscured++;
-				if (previousValue1 > obscuredThreshold)
-					numObscured++;
-				if (previousValue2 > obscuredThreshold)
-					numObscured++;
-				if (nextValue > obscuredThreshold)
-					numObscured++;
-				if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
-					value = (value + previousValue1 + previousValue2 + nextValue) / 4.0;
-			}
+		let position = 1;
 
-            if (value > obscuredThreshold) {
-                totalValue = i;
-                lastDetectionIndex = i;
-            } else if (i - lastDetectionIndex >= 2) {
-                value = 0;
-            }
+		// If we have selected an island, calculate the stroke position from the selected island's bottom sensor 
+		// and offset it based on the number of covered sensors between the island and the base of the toy
+		if (foundIsland) {
+			const bottomSensorIndex = foundIsland.indices[0];
+			const previousCovered = coveredSensors.reduce((count, value, i) => {
+				return i < bottomSensorIndex && value === true ? count + 1 : count;
+			}, 0);
+			position = (bottomSensorIndex - previousCovered) / (sensorValues.length - 1);
+			this.previousSensorIndex = bottomSensorIndex;
+		}
 
-            totalValue += Math.min(Math.max(value, 0), 1);
-        }
-        let firstEstimate = totalValue / sensorValues.length;
-
-        let position = 1.0 - firstEstimate; // Inverting position to make compatible with existing conventions like Buttplug.io
-
-        if (this.KeepPositionAtRelease) {
-            let estimatedCurrentPosition = this.previousPositions[1] + (this.previousPositions[0] - this.previousPositions[2]);
-
-            if (position > 0.95 && estimatedCurrentPosition < 0.9) {
-                position = (this.previousPositions[1] + this.previousPositions[2]) / 2;
-            } else {
-                for (let i = this.previousPositions.length - 1; i > 0; i--) {
-                    this.previousPositions[i] = this.previousPositions[i - 1];
-                }
-                this.previousPositions[0] = position;
-                position = (this.previousPositions[0] + this.previousPositions[1]) / 2;
-            }
-        }
+		// If no island is found, but there are covered sensors, keep the last stroke position
+		if (!foundIsland && totalCoveredSensors > 0) {
+			position = previousPosition;
+		}
 
         return position;
     }
 
-
-
+	
     /// Retreives stored calibration values from the connected Teledong. Called automatically in connect().
     async loadCalibration() {
         if (!this.device) {
@@ -367,6 +353,102 @@ class Teledong {
             console.error('Failed to disconnect device:', error);
         }
     }
+	
+	
+	/// Helper function, used internally in GetPosition(). 
+	/// It gets an improved value for one sensor by smoothing/triplicating the raw value of a sensor with that of its neighbors.
+	/// This makes the sensors more robust, the algorithms still work even if one individual sensor is faulty or noisy.
+	getFinalSensorValue(sensorIndex, rawValues = []) {
+		
+		let value = rawValues[sensorIndex];
+		
+		if (this.sunlightMode) 
+			value = 1 - value;
+		
+		// Smooth with neighbor sensors to mitigate sensor outlines
+		if (sensorIndex == 0)
+		{
+			// Top sensor, don't smooth
+		}
+		else if (sensorIndex == 1)
+		{
+			// Second top sensor, smooth with two neighboring sensors
+			let previousValue = rawValues[sensorIndex + 1];
+			let nextValue = rawValues[sensorIndex - 1];
+			if (this.sunlightMode)
+			{
+				previousValue = 1 - previousValue;
+				nextValue = 1 - nextValue;
+			}
+
+			let numObscured = 0;
+			let isObscured = (value > this.sensorObscuredThreshold);
+			if (isObscured)
+				numObscured++;
+			if (previousValue > this.sensorObscuredThreshold)
+				numObscured++;
+			if (nextValue > this.sensorObscuredThreshold)
+				numObscured++;
+			if ((isObscured && numObscured <= 1) || (!isObscured && numObscured >= 2))
+				value = (value + previousValue + nextValue) / 3.0;
+
+		}
+		else if (sensorIndex == rawValues.length - 1)
+		{
+			// Bottom sensor, smooth with three above it
+			let previousValue1 = rawValues[sensorIndex - 1]; 
+			let previousValue2 = rawValues[sensorIndex - 2];
+			let previousValue3 = rawValues[sensorIndex - 3];
+			if (this.sunlightMode)
+			{
+				previousValue1 = 1 - previousValue1;
+				previousValue2 = 1 - previousValue2;
+				previousValue3 = 1 - previousValue3;
+			}
+
+			let numObscured = 0;
+			let isObscured = (value > this.sensorObscuredThreshold);
+			if (isObscured)
+				numObscured++;
+			if (previousValue1 > this.sensorObscuredThreshold)
+				numObscured++;
+			if (previousValue2 > this.sensorObscuredThreshold)
+				numObscured++;
+			if (previousValue3 > this.sensorObscuredThreshold)
+				numObscured++;
+			if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
+				value = (value + previousValue1 + previousValue2 + previousValue3) / 4.0;
+		}
+		else
+		{
+			// Middle sensor, smooth with three neighboring sensors
+			let previousValue1 = rawValues[sensorIndex - 1];
+			let previousValue2 = rawValues[sensorIndex - 2];
+			let nextValue = rawValues[sensorIndex + 1];
+			if (this.sunlightMode)
+			{
+				previousValue1 = 1 - previousValue1;
+				previousValue2 = 1 - previousValue2;
+				nextValue = 1 - nextValue;
+			}
+
+			let numObscured = 0;
+			let isObscured = (value > this.sensorObscuredThreshold);
+			if (isObscured)
+				numObscured++;
+			if (previousValue1 > this.sensorObscuredThreshold)
+				numObscured++;
+			if (previousValue2 > this.sensorObscuredThreshold)
+				numObscured++;
+			if (nextValue > this.sensorObscuredThreshold)
+				numObscured++;
+			if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
+				value = (value + previousValue1 + previousValue2 + nextValue) / 4.0;
+		}
+		return value;
+	}
+
+
 
     /// Gets all raw sensor values from the device.
     /// Meant for advanced tasks like calibration/debugging. Normally you would simply use getPosition() instead.
