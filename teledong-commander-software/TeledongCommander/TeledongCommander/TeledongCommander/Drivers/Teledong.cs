@@ -59,6 +59,7 @@ public class Teledong
     const int badCalibrationThreshold = 200;
     const int numPreviousPositions = 4;
     double[] previousPositions = new double[numPreviousPositions] { 0, 0, 0, 0 };
+    const double obscuredThreshold = 0.4;
 
     /// <summary>
     /// Scans for and connects to the Teledong over USB. Must be called before any other method.
@@ -133,13 +134,12 @@ public class Teledong
         if (device == null)
             throw new Exception("Device is not connected.");
 
-        // Todo: could make this more advanced. Possible to use machine learning to predict position even without needing calibration?
-
         var beforeReadTime = DateTime.UtcNow;
 
         // First pass, rough estimation based on sensor readings only
-        var sensorValues = GetRawSensorValues().ToList();
-        if (sensorValues.Count < 4)
+        var rawSensorValues = GetRawSensorValues().ToList();
+        var processedSensorValues = ProcessSensorValues(rawSensorValues);
+        if (processedSensorValues.Count < 4)
         {
             State = TeledongState.Error;
             throw new Exception("Unexpected result from sensor readings: 0 sensor values returned");
@@ -149,100 +149,13 @@ public class Teledong
 
         double totalValue = 0;
         int lastDetectionIndex = 0;
-        const double obscuredThreshold = 0.5;
 
         // Find linear position by finding the first obscured sensor and then adding the fraction of the signal from the next sensor
         // This can probably be improved to make output even more linear and accurate.
-        for (int i = 0; i < sensorValues.Count; i++)
+        for (int i = 0; i < processedSensorValues.Count; i++)
         {
-            var value = sensorValues[sensorValues.Count - 1 - i]; // Reversed order for easier calculation
-            if (sunlightMode)
-            {
-                value = 1 - value;
-            }
-
-            // Smooth with neighbor sensors to mitigate sensor outlines
-            if (i == 0)
-            {
-                // Top sensor, don't smooth
-            }
-            else if (i == 1)
-            {
-                // Second top sensor, smooth with two neighboring sensors
-                var previousValue = sensorValues[sensorValues.Count - 1 - i + 1]; // Reversed order for easier calculation
-                var nextValue = sensorValues[sensorValues.Count - 1 - i - 1]; // Reversed order for easier calculation
-                if (sunlightMode)
-                {
-                    previousValue = 1 - previousValue;
-                    nextValue = 1 - nextValue;
-                }
-
-                var numObscured = 0;
-                var isObscured = (value > obscuredThreshold);
-                if (isObscured)
-                    numObscured++;
-                if (previousValue > obscuredThreshold)
-                    numObscured++;
-                if (nextValue > obscuredThreshold)
-                    numObscured++;
-                if ((isObscured && numObscured <= 1) || (!isObscured && numObscured >= 2))
-                    value = (value + previousValue + nextValue) / 3.0;
-
-            }
-            else if (i == sensorValues.Count - 1)
-            {
-                // Bottom sensor, smooth with three above it
-                var previousValue1 = sensorValues[sensorValues.Count - 1 - i + 1]; // Reversed order for easier calculation
-                var previousValue2 = sensorValues[sensorValues.Count - 1 - i + 2]; // Reversed order for easier calculation
-                var previousValue3 = sensorValues[sensorValues.Count - 1 - i + 3]; // Reversed order for easier calculation
-                if (sunlightMode)
-                {
-                    previousValue1 = 1 - previousValue1;
-                    previousValue2 = 1 - previousValue2;
-                    previousValue3 = 1 - previousValue3;
-                }
-
-                var numObscured = 0;
-                var isObscured = (value > obscuredThreshold);
-                if (isObscured)
-                    numObscured++;
-                if (previousValue1 > obscuredThreshold)
-                    numObscured++;
-                if (previousValue2 > obscuredThreshold)
-                    numObscured++;
-                if (previousValue3 > obscuredThreshold)
-                    numObscured++;
-                if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
-                    value = (value + previousValue1 + previousValue2 + previousValue3) / 4.0;
-            }
-            else
-            {
-                // Middle sensor, smooth with three neighboring sensors
-                var previousValue1 = sensorValues[sensorValues.Count - 1 - i + 1]; // Reversed order for easier calculation
-                var previousValue2 = sensorValues[sensorValues.Count - 1 - i + 2]; // Reversed order for easier calculation
-                var nextValue = sensorValues[sensorValues.Count - 1 - i - 1]; // Reversed order for easier calculation
-                if (sunlightMode)
-                {
-                    previousValue1 = 1 - previousValue1;
-                    previousValue2 = 1 - previousValue2;
-                    nextValue = 1 - nextValue;
-                }
-
-                var numObscured = 0;
-                var isObscured = (value > obscuredThreshold);
-                if (isObscured)
-                    numObscured++;
-                if (previousValue1 > obscuredThreshold)
-                    numObscured++;
-                if (previousValue2 > obscuredThreshold)
-                    numObscured++;
-                if (nextValue > obscuredThreshold)
-                    numObscured++;
-                if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
-                    value = (value + previousValue1 + previousValue2 + nextValue) / 4.0;
-            }
-
-
+            var value = processedSensorValues[processedSensorValues.Count - 1 - i]; // Reversed order for easier calculation
+            
             if (value > obscuredThreshold)
             {
                 totalValue = i; // Treat all sensors below first confident detection as obscured
@@ -253,7 +166,7 @@ public class Teledong
 
             totalValue += Math.Clamp(value, 0, 1);
         }
-        var firstEstimate = totalValue / sensorValues.Count;
+        var firstEstimate = totalValue / rawSensorValues.Count;
 
         /*raw = firstEstimate;
 
@@ -295,6 +208,105 @@ public class Teledong
         }
 
         return position;
+    }
+
+    // Smooth the sensor values and mitigate individual sensor errors. Makes for a more reliable result.
+    private List<double> ProcessSensorValues(List<double> rawSensorValues)
+    {
+        var result = new List<double>();
+
+        for (int i = 0; i < rawSensorValues.Count; i++)
+        {
+            var value = rawSensorValues[i];
+            if (sunlightMode)
+            {
+                value = 1 - value;
+            }
+
+            // Smooth with neighbor sensors to mitigate sensor outlines
+            if (i == 0)
+            {
+                // Top sensor, don't smooth
+            }
+            else if (i == 1)
+            {
+                // Second top sensor, smooth with two neighboring sensors
+                var previousValue = rawSensorValues[i + 1];
+                var nextValue = rawSensorValues[i - 1];
+                if (sunlightMode)
+                {
+                    previousValue = 1 - previousValue;
+                    nextValue = 1 - nextValue;
+                }
+
+                var numObscured = 0;
+                var isObscured = (value > obscuredThreshold);
+                if (isObscured)
+                    numObscured++;
+                if (previousValue > obscuredThreshold)
+                    numObscured++;
+                if (nextValue > obscuredThreshold)
+                    numObscured++;
+                if ((isObscured && numObscured <= 1) || (!isObscured && numObscured >= 2))
+                    value = (value + previousValue + nextValue) / 3.0;
+
+            }
+            else if (i == rawSensorValues.Count - 1)
+            {
+                // Bottom sensor, smooth with three above it
+                var previousValue1 = rawSensorValues[i - 1];
+                var previousValue2 = rawSensorValues[i - 2];
+                var previousValue3 = rawSensorValues[i - 3];
+                if (sunlightMode)
+                {
+                    previousValue1 = 1 - previousValue1;
+                    previousValue2 = 1 - previousValue2;
+                    previousValue3 = 1 - previousValue3;
+                }
+
+                var numObscured = 0;
+                var isObscured = (value > obscuredThreshold);
+                if (isObscured)
+                    numObscured++;
+                if (previousValue1 > obscuredThreshold)
+                    numObscured++;
+                if (previousValue2 > obscuredThreshold)
+                    numObscured++;
+                if (previousValue3 > obscuredThreshold)
+                    numObscured++;
+                if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
+                    value = (value + previousValue1 + previousValue2 + previousValue3) / 4.0;
+            }
+            else
+            {
+                // Middle sensor, smooth with three neighboring sensors
+                var previousValue1 = rawSensorValues[i - 1];
+                var previousValue2 = rawSensorValues[i - 2];
+                var nextValue = rawSensorValues[i + 1];
+                if (sunlightMode)
+                {
+                    previousValue1 = 1 - previousValue1;
+                    previousValue2 = 1 - previousValue2;
+                    nextValue = 1 - nextValue;
+                }
+
+                var numObscured = 0;
+                var isObscured = (value > obscuredThreshold);
+                if (isObscured)
+                    numObscured++;
+                if (previousValue1 > obscuredThreshold)
+                    numObscured++;
+                if (previousValue2 > obscuredThreshold)
+                    numObscured++;
+                if (nextValue > obscuredThreshold)
+                    numObscured++;
+                if ((isObscured && numObscured <= 2) || (!isObscured && numObscured >= 3))
+                    value = (value + previousValue1 + previousValue2 + nextValue) / 4.0;
+            }
+
+            result.Add(value);
+        }
+        return result;
     }
 
     /// <summary>
