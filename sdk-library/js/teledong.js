@@ -25,8 +25,9 @@ class Teledong {
 		this.endpointOut = 1;
 		this.sensorObscuredThreshold = 0.4;
 		this.coveredSensorTimestampsRef = {};
-		this.coveredSensorTimestampsRef.current = [];
+		this.coveredSensorTimestampsRef.current = Array(30).fill(-1);
 		this.previousSensorIndex = 0;
+		this.previousPosition = 1;
     }
 
     /// Scans for and connects to the Teledong over USB. Must be called before any other method.
@@ -179,7 +180,7 @@ class Teledong {
 
 		// If no island is found, but there are covered sensors, keep the last stroke position
 		if (!foundIsland && totalCoveredSensors > 0) {
-			position = previousPosition;
+			position = this.previousPosition;
 		}
 
         return position;

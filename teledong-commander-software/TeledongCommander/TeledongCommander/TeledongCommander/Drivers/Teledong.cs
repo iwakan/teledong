@@ -60,6 +60,8 @@ public class Teledong
     const int numPreviousPositions = 4;
     double[] previousPositions = new double[numPreviousPositions] { 0, 0, 0, 0 };
     const double obscuredThreshold = 0.4;
+    List<SensorIsland> sensorIslands = new List<SensorIsland>();
+    List<SensorIsland> previousSensorIslands = new List<SensorIsland>();
 
     /// <summary>
     /// Scans for and connects to the Teledong over USB. Must be called before any other method.
@@ -150,19 +152,36 @@ public class Teledong
         double totalValue = 0;
         int lastDetectionIndex = 0;
 
+        double velocity = 0;
+        sensorIslands.Clear();
+        bool previousWasObscured = false;
+
         // Find linear position by finding the first obscured sensor and then adding the fraction of the signal from the next sensor
         // This can probably be improved to make output even more linear and accurate.
         for (int i = 0; i < processedSensorValues.Count; i++)
         {
             var value = processedSensorValues[processedSensorValues.Count - 1 - i]; // Reversed order for easier calculation
-            
+
             if (value > obscuredThreshold)
             {
                 totalValue = i; // Treat all sensors below first confident detection as obscured
                 lastDetectionIndex = i;
+
+                if (!previousWasObscured)
+                {
+
+                }
             }
-            else if (i - lastDetectionIndex >= 2)
-                value = 0;
+            else
+            {
+                if (previousWasObscured)
+                {
+
+                }
+
+                if (i - lastDetectionIndex >= 2)
+                    value = 0;
+            }
 
             totalValue += Math.Clamp(value, 0, 1);
         }
@@ -186,6 +205,8 @@ public class Teledong
         //Debug.WriteLine($"first estimate: {firstEstimate.ToString("N2")},\t\tmotion: {motion.ToString("N2")},\t\ttime diff: {(timeOfLastPositions[0] - timeOfLastPositions[1]).TotalMilliseconds.ToString("N0")},\t\t pos diff: {(lastPositions[0] - lastPositions[1]).ToString("N2")},\t\t result: {finalEstimate.ToString("N2")},\t\t uncertainty: {filter.BeliefDistribution.StdDev.ToString("N2")}");
 
         var position = 1.0 - firstEstimate; // Inverting position to make compatible with other conventions like Buttplug.io
+
+
 
         if (KeepPositionAtRelease)
         {
@@ -820,6 +841,18 @@ public class Teledong
         Disconnect();
     }
 
+}
+
+public struct SensorIsland
+{
+    public SensorIsland(double top, double bottom)
+    {
+        TopPosition = top;
+        BottomPosition = bottom;
+    }
+
+    public double TopPosition;
+    public double BottomPosition;
 }
 
 public enum TeledongState
